@@ -69,7 +69,7 @@ Stockly directly demonstrates core software engineering and programming paradigm
 | **Templates** | Jinja2 | Reusable master layout (`base.html`), modular page templates, custom formatting filters |
 | **Backend** | Python 3 (Flask) | Lightweight WSGI web framework, RESTful routing, modular service architecture |
 | **Database** | SQLite3 | Embedded ACID-compliant database with foreign key enforcement and parameterized SQL queries |
-| **Testing** | `unittest` | 44 automated unit and HTTP integration test cases |
+| **Testing** | `unittest` | 52 automated unit and HTTP integration test cases |
 
 ---
 
@@ -108,7 +108,7 @@ Stockly/
 │       └── app.js              # Event-driven UI listeners (validation, debouncing, tab console)
 │
 ├── tests/
-│   └── test_inventory.py       # 44 automated unit and HTTP integration test cases
+│   └── test_inventory.py       # 52 automated unit and HTTP integration test cases
 │
 └── docs/
     ├── architecture.md         # Multi-tiered architecture and paradigm mapping
@@ -161,7 +161,9 @@ The seed command creates nine natural retail products, including healthy,
 low-stock, and out-of-stock inventory, plus a deterministic seven-calendar-day
 history relative to the Asia/Kolkata date. Opening balances are kept in the
 ledger but are not counted as Stock In on the dashboard chart. Timestamps use
-canonical SQLite format `YYYY-MM-DD HH:MM:SS`. A hidden seed registry records
+canonical SQLite format `YYYY-MM-DD HH:MM:SS`; current-day sample timestamps are
+clamped to the actual India-local seed time and future dates are never generated.
+A hidden seed registry records
 the dataset version and exact generated product/transaction IDs, making
 repeated runs safe and allowing controlled rolling refreshes. Existing legacy
 products and unmarked ledgers are preserved. A Product Code (SKU) means
@@ -186,7 +188,7 @@ python -m unittest discover -v
 python -m unittest tests/test_inventory.py -v
 ```
 
-All 44 automated tests execute against isolated temporary SQLite databases, verifying:
+All 52 automated tests execute against isolated temporary SQLite databases, verifying:
 - Product creation, duplicate SKU rejection, price validation, and editing
 - Soft-deletion (archiving) and preservation of historical records
 - Atomic Stock In and Stock Out movements

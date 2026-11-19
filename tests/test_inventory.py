@@ -12,8 +12,9 @@ import os
 import tempfile
 import unittest
 import sqlite3
-from datetime import timedelta
+from datetime import datetime, timedelta
 import app as app_module
+from unittest.mock import patch
 
 from database import Database
 from models import Product, StockTransaction
@@ -29,7 +30,8 @@ from utils import (
     format_datetime
 )
 from seed import seed_database
-from clock import today
+import seed as seed_module
+from clock import IST, today
 
 
 class TestStocklyService(unittest.TestCase):
@@ -690,6 +692,122 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
 
 
 class TestHistoricalSeed(unittest.TestCase):
+    def _seeded_rows(self, path):
+        conn = sqlite3.connect(path)
+        transactions = conn.execute(
+            'SELECT product_id, transaction_type, created_at, stock_before, stock_after '
+            'FROM stock_transactions ORDER BY transaction_id'
+        ).fetchall()
+        products = conn.execute(
+            'SELECT product_id, created_at, updated_at, quantity FROM products'
+        ).fetchall()
+        conn.close()
+        return transactions, products
+
+    def test_seed_clamps_current_day_timestamps_to_india_clock(self):
+        controls = (
+            datetime(2026, 11, 23, 8, 30, tzinfo=IST),
+            datetime(2026, 11, 23, 12, 0, tzinfo=IST),
+            datetime(2026, 11, 23, 16, 30, tzinfo=IST),
+        )
+        for controlled_now in controls:
+            fd, path = tempfile.mkstemp(suffix='.db')
+            os.close(fd)
+            try:
+                with patch.object(seed_module, 'now', return_value=controlled_now):
+                    seed_database(path)
+                transactions, products = self._seeded_rows(path)
+                limit = controlled_now.strftime('%Y-%m-%d %H:%M:%S')
+                self.assertTrue(all(row[2] <= limit for row in transactions))
+                self.assertTrue(all(row[1] <= limit and row[2] <= limit for row in products))
+                self.assertEqual(
+                    {row[2][:10] for row in transactions
+                     if row[1] in ('STOCK_IN', 'STOCK_OUT')},
+                    {(controlled_now.date() - timedelta(days=i)).isoformat()
+                     for i in range(7)},
+                )
+                self.assertTrue(all(row[3] >= 0 and row[4] >= 0 for row in transactions))
+                conn = sqlite3.connect(path)
+                for product_id, quantity in conn.execute(
+                    'SELECT product_id, quantity FROM products'
+                ):
+                    last_balance = conn.execute(
+                        '''SELECT stock_after FROM stock_transactions
+                           WHERE product_id = ? ORDER BY transaction_id DESC LIMIT 1''',
+                        (product_id,),
+                    ).fetchone()[0]
+                    self.assertEqual(quantity, last_balance)
+                conn.close()
+            finally:
+                os.unlink(path)
+
+    def test_seed_is_idempotent_and_rolls_forward_with_controlled_clock(self):
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        try:
+            first_now = datetime(2026, 11, 20, 16, 0, tzinfo=IST)
+            next_now = datetime(2026, 11, 23, 16, 0, tzinfo=IST)
+            with patch.object(seed_module, 'now', return_value=first_now):
+                first = seed_database(path)
+                repeat = seed_database(path)
+            self.assertEqual(first['transactions_added'], 34)
+            self.assertEqual(repeat['transactions_added'], 0)
+            with patch.object(seed_module, 'now', return_value=next_now):
+                refreshed = seed_database(path)
+            self.assertEqual(refreshed['transactions_added'], 34)
+            conn = sqlite3.connect(path)
+            dates = {
+                row[0] for row in conn.execute(
+                    '''SELECT DISTINCT substr(created_at, 1, 10)
+                       FROM stock_transactions
+                       WHERE transaction_type IN ('STOCK_IN', 'STOCK_OUT')'''
+                )
+            }
+            self.assertEqual(
+                dates,
+                {(next_now.date() - timedelta(days=i)).isoformat() for i in range(7)},
+            )
+            self.assertEqual(
+                conn.execute(
+                    'SELECT COUNT(*) FROM stock_transactions WHERE stock_after < 0'
+                ).fetchone()[0],
+                0,
+            )
+            conn.close()
+        finally:
+            os.unlink(path)
+
+    def test_seed_repairs_future_registry_timestamps_without_refresh(self):
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        try:
+            late = datetime(2026, 11, 23, 20, 0, tzinfo=IST)
+            early = datetime(2026, 11, 23, 8, 30, tzinfo=IST)
+            with patch.object(seed_module, 'now', return_value=late):
+                seed_database(path)
+            with patch.object(seed_module, 'now', return_value=early):
+                result = seed_database(path)
+            self.assertEqual(result['transactions_added'], 0)
+            conn = sqlite3.connect(path)
+            early_stamp = early.strftime('%Y-%m-%d %H:%M:%S')
+            self.assertEqual(
+                conn.execute(
+                    'SELECT COUNT(*) FROM stock_transactions WHERE created_at > ?',
+                    (early_stamp,),
+                ).fetchone()[0],
+                0,
+            )
+            self.assertEqual(
+                conn.execute(
+                    'SELECT COUNT(*) FROM products WHERE created_at > ? OR updated_at > ?',
+                    (early_stamp, early_stamp),
+                ).fetchone()[0],
+                0,
+            )
+            conn.close()
+        finally:
+            os.unlink(path)
+
     def test_seed_is_historical_consistent_and_idempotent(self):
         fd, path = tempfile.mkstemp(suffix='.db')
         os.close(fd)

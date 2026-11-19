@@ -4,7 +4,7 @@ from datetime import datetime, time, timedelta
 import os
 
 from database import Database
-from clock import IST, timestamp, today
+from clock import IST, now, timestamp
 
 
 DATASET_KEY = 'stockly-demonstration'
@@ -66,8 +66,11 @@ MOVEMENTS = [
 ]
 
 
-def _stamp(day, hour):
-    return datetime.combine(day, time(hour, 0), tzinfo=LOCAL_ZONE).strftime(STAMP_FORMAT)
+def _stamp(day, hour, current_time):
+    scheduled = datetime.combine(day, time(hour, 0), tzinfo=LOCAL_ZONE)
+    if day == current_time.date() and scheduled > current_time:
+        scheduled = current_time
+    return scheduled.strftime(STAMP_FORMAT)
 
 
 def _backup(path):
@@ -214,14 +217,15 @@ def _insert_product(conn, product, stamp):
     return cursor.lastrowid
 
 
-def _create_dataset(conn, today):
-    oldest = today - timedelta(days=6)
+def _create_dataset(conn, current_time):
+    current_day = current_time.date()
+    oldest = current_day - timedelta(days=6)
     target = {sku: quantity for _, sku, _, _, quantity, _ in PRODUCTS}
     for _, sku, movement_type, quantity, _ in MOVEMENTS:
         target[sku] += quantity if movement_type == 'STOCK_OUT' else -quantity
 
     product_ids = {}
-    product_stamp = _stamp(today, 8)
+    product_stamp = _stamp(current_day, 8, current_time)
     for product in PRODUCTS:
         product_ids[product[1]] = _insert_product(conn, product, product_stamp)
 
@@ -235,7 +239,7 @@ def _create_dataset(conn, today):
                (product_id, transaction_type, quantity, stock_before,
                 stock_after, reason, created_at)
                VALUES (?, 'OPENING', ?, 0, ?, 'Opening balance', ?)''',
-            (product_id, current, current, _stamp(oldest, 7)),
+            (product_id, current, current, _stamp(oldest, 7, current_time)),
         ).lastrowid
         transaction_ids.append(opening)
         for offset, move_sku, move_type, quantity, reason in MOVEMENTS:
@@ -252,14 +256,14 @@ def _create_dataset(conn, today):
                    VALUES (?, ?, ?, ?, ?, ?, ?)''',
                 (product_id, move_type, quantity, before, current, reason,
                  _stamp(oldest + timedelta(days=offset),
-                        9 if move_type == 'STOCK_IN' else 15)),
+                        9 if move_type == 'STOCK_IN' else 15, current_time)),
             ).lastrowid
             transaction_ids.append(transaction_id)
         if current != product[4]:
             raise ValueError(f'final balance mismatch for {sku}')
         conn.execute(
             'UPDATE products SET quantity = ?, updated_at = ? WHERE product_id = ?',
-            (current, _stamp(today, 18), product_id),
+            (current, _stamp(current_day, 18, current_time), product_id),
         )
     return product_ids, transaction_ids
 
@@ -268,7 +272,9 @@ def seed_database(db_path=None):
     db = Database(db_path)
     db.init_db()
     conn = db.get_connection()
-    current_day = today()
+    current_time = now()
+    current_day = current_time.date()
+    current_stamp = timestamp(current_time)
     try:
         _ensure_registry(conn)
         registered = conn.execute(
@@ -277,7 +283,6 @@ def seed_database(db_path=None):
         ).fetchall()
         refresh = False
         if registered:
-            product_ids = _validate_registered_ownership(conn)
             expected = {(current_day - timedelta(days=i)).isoformat() for i in range(7)}
             actual = {
                 row[0] for row in conn.execute(
@@ -288,7 +293,45 @@ def seed_database(db_path=None):
                     (DATASET_KEY,),
                 )
             }
-            if actual == expected:
+            future_transactions = conn.execute(
+                '''SELECT COUNT(*) FROM seed_registry_transactions r
+                   JOIN stock_transactions t ON t.transaction_id = r.transaction_id
+                   WHERE r.dataset_key = ? AND t.created_at > ?''',
+                (DATASET_KEY, current_stamp),
+            ).fetchone()[0]
+            future_products = conn.execute(
+                '''SELECT COUNT(*) FROM seed_registry_products r
+                   JOIN products p ON p.product_id = r.product_id
+                   WHERE r.dataset_key = ?
+                     AND (p.created_at > ? OR p.updated_at > ?)''',
+                (DATASET_KEY, current_stamp, current_stamp),
+            ).fetchone()[0]
+            if actual == expected and (future_transactions or future_products):
+                conn.execute(
+                    '''UPDATE stock_transactions
+                       SET created_at = ?
+                       WHERE transaction_id IN (
+                           SELECT transaction_id FROM seed_registry_transactions
+                           WHERE dataset_key = ?
+                       ) AND created_at > ?''',
+                    (current_stamp, DATASET_KEY, current_stamp),
+                )
+                conn.execute(
+                    '''UPDATE products
+                       SET created_at = CASE WHEN created_at > ? THEN ? ELSE created_at END,
+                           updated_at = CASE WHEN updated_at > ? THEN ? ELSE updated_at END
+                       WHERE product_id IN (
+                           SELECT product_id FROM seed_registry_products
+                           WHERE dataset_key = ?
+                       )''',
+                    (current_stamp, current_stamp, current_stamp, current_stamp, DATASET_KEY),
+                )
+                conn.commit()
+                print(f'Database: {db.db_path}')
+                print('Operation: repaired future registry timestamps; user data unchanged.')
+                return {'products_added': 0, 'transactions_added': 0}
+            product_ids = _validate_registered_ownership(conn)
+            if actual == expected and not future_transactions and not future_products:
                 print(f'Database: {db.db_path}')
                 print('Operation: safe no-op; current dataset is valid.')
                 return {'products_added': 0, 'transactions_added': 0}
@@ -337,11 +380,11 @@ def seed_database(db_path=None):
         else:
             operation = 'fresh seed'
 
-        product_ids, transaction_ids = _create_dataset(conn, current_day)
-        now = timestamp()
+        product_ids, transaction_ids = _create_dataset(conn, current_time)
+        seeded_at = current_stamp
         conn.execute(
             'INSERT OR REPLACE INTO seed_registry(dataset_key, version, created_at) VALUES (?, ?, ?)',
-            (DATASET_KEY, DEMO_VERSION, now),
+            (DATASET_KEY, DEMO_VERSION, seeded_at),
         )
         conn.executemany(
             'INSERT INTO seed_registry_products(dataset_key, product_id) VALUES (?, ?)',
