@@ -1,20 +1,25 @@
 /**
- * Stockly — Enterprise Client-Side Interaction Controller
- * ========================================================
+ * Stockly — Client Interaction & Reactive Workspace Controller
+ * =============================================================
  * PROGRAMMING PARADIGM: Event-Driven Programming
  *
- * Implements client-side event handlers:
- * - Responsive mobile navigation drawer toggle and backdrop dismissal
- * - Search debouncing (600ms) for responsive filtering without jarring reload
+ * All UI behaviors are driven by event listeners attached to DOM elements.
+ * Features:
+ * - Responsive mobile drawer toggle & backdrop dismiss
+ * - Segmented tab switcher for Stock In / Stock Out console
+ * - Real-time Product Form live preview updates
+ * - Dynamic stock calculator on Stock Management (Current vs Projected Balance)
+ * - Search debouncing (500ms)
  * - Filter dropdown auto-submission
- * - Live stock preview indicator during Stock In / Stock Out item selection
- * - Safe archive confirmation modal prompt
- * - Automatic graceful dismissal of status alert notifications
+ * - Archive confirmation prompt
+ * - Collapsible filter drawer for transaction date ranges
+ * - Auto-dismissing alerts
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+
     // ====================================================================
-    // 1. Mobile Sidebar Navigation & Backdrop Overlay
+    // 1. Mobile Sidebar Navigation Drawer & Backdrop
     // ====================================================================
     const sidebarToggle = document.querySelector('.sidebar-toggle');
     const sidebar = document.querySelector('.sidebar');
@@ -47,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ====================================================================
-    // 2. Alert Notification Dismissal
+    // 2. Alert Dismissal with Smooth Fade
     // ====================================================================
     const alerts = document.querySelectorAll('.alert');
     alerts.forEach((alert) => {
@@ -60,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ====================================================================
-    // 3. Product Archive Confirmation
+    // 3. Product Archive Confirmation Guard
     // ====================================================================
     const archiveForms = document.querySelectorAll('.archive-form');
     archiveForms.forEach((form) => {
@@ -76,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ====================================================================
-    // 4. Filter Auto-Submission & Search Debounce
+    // 4. Filter Auto-Submit & Search Debounce
     // ====================================================================
     const filterSelects = document.querySelectorAll('.filter-card select, .filter-bar select');
     filterSelects.forEach((select) => {
@@ -101,107 +106,182 @@ document.addEventListener('DOMContentLoaded', () => {
             if (form) {
                 searchTimer = setTimeout(() => {
                     form.submit();
-                }, 600);
+                }, 500);
             }
         });
     });
 
     // ====================================================================
-    // 5. Stock Management Dynamic Preview
+    // 5. Stock Management Segmented Tab Controller
     // ====================================================================
-    const stockSelects = document.querySelectorAll('.stock-product-select');
-    stockSelects.forEach((select) => {
-        function updateLivePreview() {
-            const selectedOpt = select.options[select.selectedIndex];
-            const liveBadge = select.closest('.form-group')?.querySelector('.stock-live-badge');
-            const targetQtySpan = liveBadge?.querySelector('.live-qty-value');
+    const tabIn = document.getElementById('tab-stock-in');
+    const tabOut = document.getElementById('tab-stock-out');
+    const panelIn = document.getElementById('panel-stock-in');
+    const panelOut = document.getElementById('panel-stock-out');
 
-            if (liveBadge && targetQtySpan) {
-                if (selectedOpt && selectedOpt.value) {
-                    const availableQty = selectedOpt.dataset.quantity ?? '0';
-                    targetQtySpan.textContent = `${availableQty} units`;
-                    liveBadge.style.display = 'flex';
-                } else {
-                    liveBadge.style.display = 'none';
-                }
-            }
-        }
+    if (tabIn && tabOut && panelIn && panelOut) {
+        tabIn.addEventListener('click', () => {
+            tabIn.classList.add('active-in');
+            tabOut.classList.remove('active-out');
+            panelIn.classList.add('active');
+            panelOut.classList.remove('active');
+            updateStockInspector('IN');
+        });
 
-        select.addEventListener('change', updateLivePreview);
-        updateLivePreview();
-    });
-
-    // ====================================================================
-    // 6. Form Submission Validation Guards
-    // ====================================================================
-    const productForm = document.getElementById('product-form');
-    if (productForm) {
-        productForm.addEventListener('submit', (e) => {
-            const name = document.getElementById('name');
-            const sku = document.getElementById('sku');
-            const price = document.getElementById('price');
-            const errors = [];
-
-            if (name && !name.value.trim()) errors.push('Product name is required.');
-            if (sku && !sku.value.trim()) errors.push('SKU is required.');
-            if (price && (isNaN(parseFloat(price.value)) || parseFloat(price.value) < 0)) {
-                errors.push('Unit price cannot be negative.');
-            }
-
-            if (errors.length > 0) {
-                e.preventDefault();
-                showClientNotice(errors);
-            }
+        tabOut.addEventListener('click', () => {
+            tabOut.classList.add('active-out');
+            tabIn.classList.remove('active-in');
+            panelOut.classList.add('active');
+            panelIn.classList.remove('active');
+            updateStockInspector('OUT');
         });
     }
 
-    const stockForms = document.querySelectorAll('.stock-form');
-    stockForms.forEach((form) => {
-        form.addEventListener('submit', (e) => {
-            const select = form.querySelector('select[name="product_id"]');
-            const qtyInput = form.querySelector('input[name="quantity"]');
-            const errors = [];
+    // ====================================================================
+    // 6. Interactive Stock Inspector & Projected Balance Calculator
+    // ====================================================================
+    function updateStockInspector(currentMode) {
+        const activePanel = document.querySelector('.stock-form-panel.active') || panelIn;
+        if (!activePanel) return;
 
-            if (!select || !select.value) {
-                errors.push('Please select a product.');
+        const select = activePanel.querySelector('.stock-product-select');
+        const qtyInput = activePanel.querySelector('input[name="quantity"]');
+        const selectedOpt = select ? select.options[select.selectedIndex] : null;
+
+        const nameEl = document.getElementById('inspector-product-name');
+        const skuEl = document.getElementById('inspector-product-sku');
+        const stockEl = document.getElementById('inspector-current-stock');
+        const reorderEl = document.getElementById('inspector-reorder-level');
+        const projectedEl = document.getElementById('inspector-projected-stock');
+        const statusEl = document.getElementById('inspector-status-badge');
+        const meterFill = document.getElementById('inspector-meter-fill');
+
+        if (selectedOpt && selectedOpt.value) {
+            const productName = selectedOpt.dataset.name || selectedOpt.text.split('(')[0].trim();
+            const sku = selectedOpt.dataset.sku || 'SKU-N/A';
+            const currentQty = parseInt(selectedOpt.dataset.quantity || '0', 10);
+            const reorderLvl = parseInt(selectedOpt.dataset.reorder || '10', 10);
+            const moveQty = parseInt(qtyInput && qtyInput.value ? qtyInput.value : '0', 10);
+
+            if (nameEl) nameEl.textContent = productName;
+            if (skuEl) skuEl.textContent = sku;
+            if (stockEl) stockEl.textContent = `${currentQty} units`;
+            if (reorderEl) reorderEl.textContent = `${reorderLvl} units`;
+
+            // Calculate Projected Balance
+            const isStockIn = activePanel.id === 'panel-stock-in';
+            const projected = isStockIn ? (currentQty + moveQty) : Math.max(0, currentQty - moveQty);
+            if (projectedEl) {
+                projectedEl.textContent = `${projected} units`;
+                projectedEl.style.color = isStockIn ? 'var(--success)' : (projected <= reorderLvl ? 'var(--danger)' : 'var(--text-primary)');
             }
-            if (qtyInput) {
-                const qty = parseInt(qtyInput.value, 10);
-                if (isNaN(qty) || qty <= 0) {
-                    errors.push('Quantity must be a positive integer greater than zero.');
+
+            // Update Status Badge
+            if (statusEl) {
+                if (currentQty === 0) {
+                    statusEl.className = 'badge badge-danger';
+                    statusEl.textContent = 'Out of Stock';
+                } else if (currentQty <= reorderLvl) {
+                    statusEl.className = 'badge badge-warning';
+                    statusEl.textContent = 'Low Stock';
+                } else {
+                    statusEl.className = 'badge badge-success';
+                    statusEl.textContent = 'In Stock';
                 }
             }
 
-            if (errors.length > 0) {
-                e.preventDefault();
-                showClientNotice(errors);
+            // Update Mini Meter
+            if (meterFill) {
+                const maxMeter = Math.max(reorderLvl * 2, currentQty, 20);
+                const pct = Math.min(100, Math.round((currentQty / maxMeter) * 100));
+                meterFill.style.width = `${pct}%`;
+                meterFill.style.backgroundColor = currentQty === 0 ? 'var(--danger)' : (currentQty <= reorderLvl ? 'var(--warning)' : 'var(--success)');
             }
-        });
+        }
+    }
+
+    const stockSelects = document.querySelectorAll('.stock-product-select');
+    stockSelects.forEach((sel) => {
+        sel.addEventListener('change', () => updateStockInspector());
     });
 
-    function showClientNotice(messages) {
-        const oldNotice = document.getElementById('client-notice');
-        if (oldNotice) oldNotice.remove();
+    const stockQtyInputs = document.querySelectorAll('.stock-form input[name="quantity"]');
+    stockQtyInputs.forEach((inp) => {
+        inp.addEventListener('input', () => updateStockInspector());
+    });
 
-        const notice = document.createElement('div');
-        notice.id = 'client-notice';
-        notice.className = 'alert alert-danger';
-        notice.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-            <div>
-                <strong>Please correct the following:</strong><br>
-                ${messages.map(m => `• ${m}`).join('<br>')}
-            </div>
-        `;
+    // Run initial inspector state
+    updateStockInspector();
 
-        const content = document.querySelector('.main-content');
-        if (content) {
-            content.insertBefore(notice, content.firstChild);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+    // ====================================================================
+    // 7. Product Form Live Preview Updates (Add / Edit Page)
+    // ====================================================================
+    const formNameInput = document.getElementById('name');
+    const formSkuInput = document.getElementById('sku');
+    const formCategorySelect = document.getElementById('category');
+    const formPriceInput = document.getElementById('price');
+    const formQtyInput = document.getElementById('quantity');
+    const formReorderInput = document.getElementById('reorder_level');
+
+    const previewName = document.getElementById('preview-name');
+    const previewSku = document.getElementById('preview-sku');
+    const previewCategory = document.getElementById('preview-category');
+    const previewPrice = document.getElementById('preview-price');
+    const previewStock = document.getElementById('preview-stock');
+    const previewStatus = document.getElementById('preview-status');
+    const previewReorder = document.getElementById('preview-reorder');
+
+    function updateProductLivePreview() {
+        if (!previewName) return;
+
+        const nameVal = formNameInput && formNameInput.value.trim() ? formNameInput.value.trim() : 'Product Title';
+        const skuVal = formSkuInput && formSkuInput.value.trim() ? formSkuInput.value.trim() : 'SKU-SAMPLE';
+        const catVal = formCategorySelect ? formCategorySelect.value : 'General';
+        const priceVal = formPriceInput && !isNaN(parseFloat(formPriceInput.value)) ? parseFloat(formPriceInput.value).toFixed(2) : '0.00';
+        const qtyVal = formQtyInput && !isNaN(parseInt(formQtyInput.value, 10)) ? parseInt(formQtyInput.value, 10) : 0;
+        const reorderVal = formReorderInput && !isNaN(parseInt(formReorderInput.value, 10)) ? parseInt(formReorderInput.value, 10) : 10;
+
+        previewName.textContent = nameVal;
+        previewSku.textContent = skuVal;
+        if (previewCategory) previewCategory.textContent = catVal;
+        if (previewPrice) previewPrice.textContent = `₹${Number(priceVal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+        if (previewStock) previewStock.textContent = `${qtyVal} units`;
+        if (previewReorder) previewReorder.textContent = `${reorderVal} units`;
+
+        if (previewStatus) {
+            if (qtyVal === 0) {
+                previewStatus.className = 'badge badge-danger';
+                previewStatus.textContent = 'Out of Stock';
+            } else if (qtyVal <= reorderVal) {
+                previewStatus.className = 'badge badge-warning';
+                previewStatus.textContent = 'Low Stock Alert';
+            } else {
+                previewStatus.className = 'badge badge-success';
+                previewStatus.textContent = 'In Stock';
+            }
         }
+    }
+
+    if (formNameInput) formNameInput.addEventListener('input', updateProductLivePreview);
+    if (formSkuInput) formSkuInput.addEventListener('input', updateProductLivePreview);
+    if (formCategorySelect) formCategorySelect.addEventListener('change', updateProductLivePreview);
+    if (formPriceInput) formPriceInput.addEventListener('input', updateProductLivePreview);
+    if (formQtyInput) formQtyInput.addEventListener('input', updateProductLivePreview);
+    if (formReorderInput) formReorderInput.addEventListener('input', updateProductLivePreview);
+
+    updateProductLivePreview();
+
+    // ====================================================================
+    // 8. Collapsible Filter Toggle for Transactions
+    // ====================================================================
+    const filterToggleBtn = document.getElementById('toggle-advanced-filters');
+    const advancedFiltersRow = document.getElementById('advanced-filters-row');
+    if (filterToggleBtn && advancedFiltersRow) {
+        filterToggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const isHidden = advancedFiltersRow.style.display === 'none';
+            advancedFiltersRow.style.display = isHidden ? 'flex' : 'none';
+            filterToggleBtn.classList.toggle('active', isHidden);
+        });
     }
 });

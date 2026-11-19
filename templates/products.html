@@ -7,7 +7,7 @@
 <div class="page-header">
     <div class="page-title-group">
         <h1 class="page-title">Products</h1>
-        <p class="page-subtitle">Manage your inventory catalog, unit pricing, and reorder levels.</p>
+        <p class="page-subtitle">Manage your inventory catalog, unit pricing, and stock thresholds.</p>
     </div>
     <div class="page-actions">
         <a href="/products/add" class="btn btn-primary">
@@ -20,7 +20,7 @@
     </div>
 </div>
 
-<!-- Filter & Search Toolbar -->
+<!-- Unified Filter Toolbar -->
 <div class="filter-card">
     <form method="GET" action="/products" class="filter-row">
         <!-- Search Input -->
@@ -61,7 +61,7 @@
 
         <!-- Sort Order -->
         <div class="filter-item">
-            <label class="form-label" for="filter-sort">Sort By</label>
+            <label class="form-label" for="filter-sort">Sort Order</label>
             <select id="filter-sort" name="sort" class="form-control">
                 <option value="newest" {% if sort_by == 'newest' %}selected{% endif %}>Newest First</option>
                 <option value="oldest" {% if sort_by == 'oldest' %}selected{% endif %}>Oldest First</option>
@@ -108,8 +108,7 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>SKU</th>
-                            <th>Product Name</th>
+                            <th>Product Details</th>
                             <th>Category</th>
                             <th>Unit Price</th>
                             <th>Available Stock</th>
@@ -122,14 +121,40 @@
                         {% for p in products %}
                             <tr>
                                 <td>
-                                    <span class="cell-sku">{{ p.sku }}</span>
-                                </td>
-                                <td>
-                                    <span class="cell-product-name">{{ p.name }}</span>
+                                    <div class="product-cell-group">
+                                        <div class="product-thumb-icon">
+                                            {% if p.category == 'Electronics' %}
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect></svg>
+                                            {% elif p.category == 'Grocery' %}
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                                            {% elif p.category == 'Stationery' %}
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path></svg>
+                                            {% elif p.category == 'Clothing' %}
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"></path></svg>
+                                            {% elif p.category == 'Home & Living' %}
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                                            {% else %}
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+                                            {% endif %}
+                                        </div>
+                                        <div style="display: flex; flex-direction: column;">
+                                            <span class="cell-product-name">{{ p.name }}</span>
+                                            <span class="cell-product-sku-sub">{{ p.sku }}</span>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td class="cell-muted">{{ p.category }}</td>
                                 <td style="font-weight: 600;">{{ p.price|currency }}</td>
-                                <td style="font-weight: 600;">{{ p.quantity }} units</td>
+                                <td>
+                                    <div class="stock-meter-wrap">
+                                        <span style="font-weight: 600; min-width: 32px;">{{ p.quantity }}</span>
+                                        {% set max_bar = [p.reorder_level * 2, p.quantity, 10]|max %}
+                                        {% set bar_pct = [((p.quantity / max_bar) * 100)|round|int, 100]|min %}
+                                        <div class="stock-meter-bar" title="{{ p.quantity }} units">
+                                            <div class="stock-meter-fill" style="width: {{ bar_pct }}%; background-color: {{ 'var(--danger)' if p.quantity == 0 else ('var(--warning)' if p.quantity <= p.reorder_level else 'var(--success)') }};"></div>
+                                        </div>
+                                    </div>
+                                </td>
                                 <td class="cell-muted">{{ p.reorder_level }} units</td>
                                 <td>
                                     {% if not p.is_active %}
@@ -176,7 +201,7 @@
                                             </form>
                                         </div>
                                     {% else %}
-                                        <span class="cell-muted" style="font-size: 0.75rem;">Inactive</span>
+                                        <span class="cell-muted" style="font-size: 0.75rem;">Archived</span>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -195,7 +220,7 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
             </div>
-            <div class="empty-state-title">No products match your criteria</div>
+            <div class="empty-state-title">No products match your query</div>
             <p class="empty-state-desc">Try clearing filters or search terms, or add a new product to your inventory.</p>
             <div style="display: flex; gap: 8px;">
                 <a href="/products" class="btn btn-secondary">Clear Filters</a>

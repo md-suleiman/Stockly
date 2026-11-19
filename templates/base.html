@@ -4,15 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Stockly — Resource Management{% endblock %}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Fully offline typography: Inter and modern system font stack -->
+    <link rel="stylesheet" href="/static/css/style.css?v={{ cache_bust }}">
 </head>
 <body>
     <div class="app-container">
         <!-- Mobile Navigation Trigger -->
-        <button class="sidebar-toggle" aria-label="Toggle navigation menu">
+        <button class="sidebar-toggle" aria-label="Toggle navigation drawer">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -27,7 +25,7 @@
             <div class="sidebar-header">
                 <a href="/" class="sidebar-brand">
                     <div class="brand-icon-wrapper">
-                        <!-- Stockly Cube Logo -->
+                        <!-- Stockly Isometric 3D Cube Logo -->
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                             <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
@@ -36,14 +34,15 @@
                     </div>
                     <div class="brand-text-group">
                         <span class="brand-name">Stockly</span>
-                        <span class="brand-badge">Enterprise Inventory</span>
+                        <span class="brand-badge">Enterprise Edition</span>
                     </div>
                 </a>
             </div>
 
             <div class="sidebar-content">
-                <div>
-                    <div class="nav-section-title">Navigation</div>
+                <!-- Group 1: OVERVIEW -->
+                <div class="nav-group">
+                    <div class="nav-section-title">Overview</div>
                     <ul class="sidebar-nav">
                         <li class="nav-item {% if request.path == '/' %}active{% endif %}">
                             <a href="/" class="nav-link">
@@ -56,6 +55,13 @@
                                 <span>Dashboard</span>
                             </a>
                         </li>
+                    </ul>
+                </div>
+
+                <!-- Group 2: INVENTORY -->
+                <div class="nav-group">
+                    <div class="nav-section-title">Inventory</div>
+                    <ul class="sidebar-nav">
                         <li class="nav-item {% if request.path.startswith('/products') %}active{% endif %}">
                             <a href="/products" class="nav-link">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -83,6 +89,13 @@
                                 <span>Transactions</span>
                             </a>
                         </li>
+                    </ul>
+                </div>
+
+                <!-- Group 3: INSIGHTS -->
+                <div class="nav-group">
+                    <div class="nav-section-title">Insights</div>
+                    <ul class="sidebar-nav">
                         <li class="nav-item {% if request.path.startswith('/reports') %}active{% endif %}">
                             <a href="/reports" class="nav-link">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -93,6 +106,13 @@
                                 <span>Reports</span>
                             </a>
                         </li>
+                    </ul>
+                </div>
+
+                <!-- Group 4: SYSTEM -->
+                <div class="nav-group">
+                    <div class="nav-section-title">System</div>
+                    <ul class="sidebar-nav">
                         <li class="nav-item {% if request.path.startswith('/settings') %}active{% endif %}">
                             <a href="/settings" class="nav-link">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -104,18 +124,58 @@
                         </li>
                     </ul>
                 </div>
+
+                <!-- Dynamic Lower Sidebar Widget: INVENTORY HEALTH -->
+                <div class="sidebar-health-widget">
+                    <div class="health-widget-header">
+                        <span class="health-widget-title">Inventory Health</span>
+                        <span class="health-badge">{{ inventory_health.health_percent }}%</span>
+                    </div>
+                    <div class="health-progress-track">
+                        <div class="health-progress-fill" style="width: {{ inventory_health.health_percent }}%;"></div>
+                    </div>
+                    <p class="health-widget-note">
+                        {% if inventory_health.attention_count > 0 %}
+                            {{ inventory_health.attention_count }} product{{ 's' if inventory_health.attention_count != 1 else '' }} require restock attention.
+                        {% else %}
+                            All active catalog items are currently healthy.
+                        {% endif %}
+                    </p>
+                </div>
             </div>
 
+            <!-- Sidebar Subtle Footer -->
             <div class="sidebar-footer">
                 <div class="system-status">
                     <span class="status-dot"></span>
-                    <span>System Online &bull; SQLite Storage</span>
+                    <span>Local SQLite Database &bull; Active</span>
                 </div>
             </div>
         </aside>
 
-        <!-- Main Workspace -->
+        <!-- Main Workspace Shell -->
         <div class="main-wrapper">
+            <!-- Slim Top Utility Bar -->
+            <header class="top-utility-bar">
+                <div class="utility-breadcrumb">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    <span>Warehouse Console</span>
+                    <span style="color: var(--border-color);">&bull;</span>
+                    <span class="utility-breadcrumb-bold">Main Inventory</span>
+                </div>
+                <div class="utility-actions">
+                    <div class="utility-status-pill">
+                        <span class="status-dot" style="width: 6px; height: 6px;"></span>
+                        <span>Catalog Health: {{ inventory_health.health_percent }}%</span>
+                    </div>
+                    <span class="cell-muted" style="font-size: 0.75rem;">₹ INR Standard</span>
+                </div>
+            </header>
+
+            <!-- Centered Main Content -->
             <main class="main-content">
                 <!-- System Flash Notifications -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -151,7 +211,8 @@
         </div>
     </div>
 
-    <script src="/static/js/app.js"></script>
+    <!-- Interactive Workspace Scripts with Cache Busting -->
+    <script src="/static/js/app.js?v={{ cache_bust }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

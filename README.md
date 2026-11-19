@@ -2,69 +2,75 @@
 
 > **Smarter Stock. Simpler Management.**
 
+**Product Name:** Stockly  
+**Dashboard Heading:** Resource Management  
 **Academic Project Title:** Design and Development of Stockly – A Web-Based Inventory and Resource Management System  
-**Domain:** Inventory Management  
-**Target Users:** Small retail business owners and inventory staff  
-**Currency:** Indian Rupees (₹)
+**Domain:** Inventory & Resource Management  
+**Target Users:** Small retail business owners, shop managers, and warehouse inventory personnel  
+**Currency Standard:** Indian Rupees (₹)
 
 ---
 
 ## 📋 Overview
 
-**Stockly** is a robust, production-grade, browser-based inventory and resource management web application designed for small retailers, shops, and enterprise inventory personnel. Built cleanly with Python, Flask, SQLite, and vanilla frontend technologies, Stockly eliminates complex cloud and third-party dependencies while delivering an intuitive, SaaS-style management dashboard.
+**Stockly** is a polished, local-first, browser-based inventory and resource management application designed for retail business owners and inventory teams. Built cleanly with Python, Flask, SQLite, and vanilla frontend technologies (HTML5, CSS3, JavaScript), Stockly avoids bulky external dependencies while delivering an elegant, Linear- and Stripe-inspired enterprise SaaS management dashboard.
 
-Stockly genuinely illustrates core software engineering and programming paradigms:
-- **Object-Oriented Programming (OOP):** Rich domain models (`Product`, `StockTransaction`), encapsulation of database access (`Database`), and the service layer architecture (`InventoryService`).
-- **Procedural Programming:** Reusable, pure utility functions for strict data validation, status checking, calculations, and formatting (`utils.py`).
-- **Event-Driven Programming:** Client-side user event listeners (search debouncing, form validation, filter updates, modal prompts) and Flask's route-driven HTTP event handling.
+Stockly directly demonstrates core software engineering and programming paradigms:
+- **Object-Oriented Programming (OOP):** Rich domain entities (`Product`, `StockTransaction`), encapsulation of SQLite connections via `Database`, and a service layer architecture (`InventoryService`) with atomic transactions.
+- **Procedural Programming:** Pure, deterministic utility functions for strict data validation, stock status calculation, financial math, and currency formatting (`utils.py`).
+- **Event-Driven Programming:** Client-side DOM event listeners (search debouncing, form validation, filter drawers, real-time live preview, projected balance calculations) and Flask's route-driven HTTP event handling.
 
 ---
 
-## ✨ Features
+## ✨ Key Capabilities & SaaS Redesign Highlights
 
-- **📊 Resource Management Dashboard:**
-  - Real-time KPI summary cards: Total Products, Total Stock Units, Low Stock Alerts, and Total Inventory Value (₹).
-  - Pure CSS horizontal bar charts displaying category-wise stock allocation.
-  - Active low-stock alerts and recent stock transaction feed.
-  - Quick action shortcuts for instant product addition and stock movements.
+- **📊 Enterprise Resource Management Dashboard:**
+  - **4 Unified KPI Cards:** Total Products, Total Stock Units, Low Stock Alerts, and Total Inventory Value (₹), styled with clean white surfaces, subtle borders, and dedicated icon containers.
+  - **7-Day Stock Movement Visualization:** Pure CSS responsive grouped bar chart comparing daily Stock In (receipts) vs. Stock Out (issues) based on verified audit records.
+  - **Inventory Health Donut Gauge:** Inline SVG proportional donut visualization tracking Healthy, Low Stock, and Out of Stock inventory percentages.
+  - **Category Volume Allocation:** Clean proportional distribution meters breaking down inventory assets by catalog category.
+  - **Low Stock Exceptions List:** Immediate restock action links with priority warning badges.
+  - **Recent Movement Log:** Compact, high-density table displaying the latest inventory movements.
 
-- **📋 Complete Product Management:**
-  - Full CRUD operations: Create, Read, Update, and Archive products.
-  - Non-destructive soft-delete (archiving) ensuring transaction history remains intact.
-  - Server-side and client-side field validation (rejects negative prices, negative stock, and duplicate SKUs).
-  - Search by SKU or product name with live debouncing.
-  - Filtering by category (Electronics, Grocery, Stationery, Clothing, Home & Living, Other) and stock status.
-  - Multi-criteria sorting (Newest, Oldest, Name, Price, Quantity).
+- **📋 Complete Product Catalog Management:**
+  - Full CRUD lifecycle: Create, Read, Update, and soft-delete (Archive) catalog items.
+  - **Non-Destructive Archiving:** Soft-deletes products to preserve historical transactions and audit integrity.
+  - **Live Product Form Preview:** Interactive real-time card preview on the Add/Edit form displaying product title, SKU, price, stock status, and reorder levels as you type.
+  - **Search & Filter Bar:** Single-row unified toolbar with debounced search (500ms), category selector, stock status filter, and multi-criteria sorting (Newest, Oldest, Name, Price, Quantity).
+  - Server-side & client-side validation enforcing non-negative prices, integer quantities, and unique SKU constraints.
 
-- **📥 Dual-Action Stock Management:**
-  - **Stock In:** Restock inventory with quantity, supplier details, and batch notes.
-  - **Stock Out:** Issue or sell stock with pre-validation against available on-hand quantities.
-  - Atomic database transactions: stock updates and audit transaction logs succeed or fail together.
+- **📥 Dual-Action Stock Console:**
+  - **Segmented Tab Switcher:** Toggle between **Stock In** (supplier receipts/returns) and **Stock Out** (sales/issues/shrinkage) in a single unified workspace.
+  - **Live Product Inspector:** Instantly inspects the selected product's current stock, reorder threshold, and visual meter gauge.
+  - **Dynamic Projected Balance Calculator:** Computes the projected balance (`Current Stock ± Transaction Quantity`) in real-time as the user inputs values, providing instant visual feedback.
+  - **Atomic Database Transactions:** Stock balance adjustments and immutable transaction log entries succeed or fail together as a single atomic unit.
 
-- **🔄 Comprehensive Transaction History:**
+- **🔄 Comprehensive Transaction History & Audit Log:**
   - Complete chronological audit log of all inventory movements (`OPENING`, `STOCK_IN`, `STOCK_OUT`).
-  - Records previous stock, movement quantity, updated stock, timestamp, and remark notes.
-  - Filterable by product, movement type, date range, and search terms.
+  - Records reference ID, UTC timestamp, product name, SKU, movement type, quantity change (`+` / `-`), stock progression (`before → after`), and operator audit notes.
+  - **Collapsible Filter Drawer:** Quick-access search and product filters with an expandable drawer for precise date range filtering (`Date From`, `Date To`, sort sequence).
 
-- **📈 Analytical Reports & Data Export:**
-  - Low-stock and out-of-stock item tracking.
-  - Category-level quantity and valuation breakdowns.
-  - Instant CSV export for both products and transaction logs.
+- **📈 Analytical Reports & RFC 4180 CSV Export:**
+  - Executive summary metric bar: Active SKUs, Total Units, Asset Value, Low Stock Alerts, and Stock Depletions.
+  - Category valuation breakdown with percentage volume share indicators.
+  - Zero-stock depletion table and low-stock reorder exception lists with one-click restock actions.
+  - **Standardized CSV Exports:** Generates fully RFC 4180-compliant CSV files for both products and transaction logs using Python's built-in `csv.writer` with proper quoting and escaping.
 
-- **⚙️ Settings & System Information:**
-  - System metadata, currency standards, and operational guidelines on reorder thresholds.
+- **⚙️ Enterprise Settings & Configuration:**
+  - System metadata, runtime parameters, Indian Rupee monetary formatting standards, and catalog taxonomy.
+  - Documentation of automated low-stock and depletion threshold logic.
 
 ---
 
 ## 🛠 Technology Stack
 
-| Layer | Technology | Description |
+| Layer | Technology | Details |
 |---|---|---|
-| **Frontend** | HTML5, CSS3, Vanilla JS | Modern SaaS styling with CSS Grid/Flexbox, responsive layout, pure CSS charts |
-| **Templates** | Jinja2 | Reusable base layout, dynamic inheritance, custom formatting filters |
-| **Backend** | Python 3 (Flask) | Lightweight WSGI web framework, RESTful routing, modular services |
-| **Database** | SQLite3 | Embedded ACID-compliant database with foreign key enforcement and parameterization |
-| **Testing** | `unittest` | 25 automated unit and HTTP integration test cases |
+| **Frontend** | HTML5, CSS3, Vanilla JS | Custom modern SaaS design system (1,700+ lines of CSS), CSS Grid/Flexbox, SVG line icons, zero external CDN dependencies |
+| **Templates** | Jinja2 | Reusable master layout (`base.html`), dynamic sidebar health widget, modular partials, custom formatting filters |
+| **Backend** | Python 3 (Flask) | Lightweight WSGI web framework, RESTful routing, modular service architecture |
+| **Database** | SQLite3 | Embedded ACID-compliant database with foreign key enforcement and parameterized SQL queries |
+| **Testing** | `unittest` | 30 comprehensive automated unit and HTTP integration test cases |
 
 ---
 
@@ -73,36 +79,36 @@ Stockly genuinely illustrates core software engineering and programming paradigm
 ```text
 Stockly/
 │
-├── app.py                      # Flask routes and HTTP request controllers
+├── app.py                      # Flask routes, context processors, and HTTP controllers
 ├── database.py                 # SQLite connection manager and schema initialization (OOP)
 ├── models.py                   # Domain models: Product and StockTransaction (OOP)
 ├── inventory_service.py        # Core business logic service with atomic transactions (OOP)
-├── utils.py                    # Reusable validation, math, and formatting functions (Procedural)
+├── utils.py                    # Pure validation, calculation, and formatting utilities (Procedural)
 ├── seed.py                     # Idempotent database demonstration seeding script
 ├── requirements.txt            # Minimal Python dependencies (Flask)
 ├── README.md                   # System documentation and setup guide
 │
 ├── instance/
-│   └── stockly.db              # SQLite persistent database (created on startup)
+│   └── stockly.db              # SQLite persistent database (created on first run)
 │
 ├── templates/
-│   ├── base.html               # Master layout with dark navy sidebar and notifications
+│   ├── base.html               # Master layout with dark navy sidebar, health widget, and top bar
 │   ├── dashboard.html          # Resource Management overview with KPI cards and charts
 │   ├── products.html           # Product catalog with search, filter, and archive actions
-│   ├── product_form.html       # Dynamic Add / Edit product form
-│   ├── stock_management.html   # Dedicated Stock In and Stock Out interface
-│   ├── transactions.html       # Filterable audit log of stock movements
-│   ├── reports.html            # Inventory summary, alerts, and CSV export options
-│   └── settings.html           # Application configuration and metadata
+│   ├── product_form.html       # 2-column Add/Edit product form with live interactive preview
+│   ├── stock_management.html   # Segmented Stock In / Stock Out console with live inspector
+│   ├── transactions.html       # Filterable audit log with collapsible date range drawer
+│   ├── reports.html            # Inventory summary, alerts, category share, and CSV exports
+│   └── settings.html           # System parameters, localization, and operational rules
 │
 ├── static/
 │   ├── css/
-│   │   └── style.css           # 1,200+ lines of custom CSS (SaaS theme, responsive, no CDNs)
+│   │   └── style.css           # 1,700+ lines of enterprise CSS (tokens, responsive, no CDNs)
 │   └── js/
-│       └── app.js              # Event-driven UI listeners (validation, debouncing, modals)
+│       └── app.js              # Event-driven UI listeners (validation, debouncing, tab console)
 │
 ├── tests/
-│   └── test_inventory.py       # Comprehensive unit and integration test suite
+│   └── test_inventory.py       # 30 automated unit and HTTP integration test cases
 │
 └── docs/
     ├── architecture.md         # Multi-tiered architecture and paradigm mapping
@@ -118,33 +124,37 @@ Stockly/
 - `pip` package manager
 
 ### 1. Clone or Open the Workspace
-```powershell
-cd c:\Users\suneh\OneDrive\Desktop\Projects\Stockly
+```bash
+git clone https://github.com/md-suleiman/Stockly.git
+cd Stockly
 ```
 
 ### 2. (Optional) Create and Activate Virtual Environment
-```powershell
+```bash
+# Create virtual environment
 python -m venv venv
+
 # On Windows PowerShell:
 .\venv\Scripts\Activate.ps1
-# On Linux/macOS:
+
+# On macOS/Linux:
 source venv/bin/activate
 ```
 
 ### 3. Install Required Dependencies
-```powershell
+```bash
 pip install -r requirements.txt
 ```
 
 ### 4. Initialize & Populate Sample Data
 Populate the database with realistic retail products across all categories and varying stock statuses:
-```powershell
+```bash
 python seed.py
 ```
-*(The seed script is safe to run multiple times without duplicating data).*
+*(The seed script is idempotent and safe to run multiple times without duplicating data).*
 
 ### 5. Launch the Application
-```powershell
+```bash
 python app.py
 ```
 
@@ -156,17 +166,21 @@ Open your browser and navigate to:
 ## 🧪 Running Automated Tests
 
 Run the full test suite using Python's built-in `unittest` runner:
-```powershell
+```bash
 python -m unittest tests/test_inventory.py -v
 ```
 
-All 25 automated tests execute against an isolated temporary SQLite database, verifying:
+All 30 automated tests execute against an isolated temporary SQLite database, verifying:
 - Product creation, duplicate SKU rejection, price validation, and editing
-- Soft-deletion (archival) and preservation of historical records
+- Soft-deletion (archiving) and preservation of historical records
 - Atomic Stock In and Stock Out movements
 - Stock Out rejection when quantity exceeds current availability
 - Zero/negative movement input rejection
 - Low-stock condition detection and inventory valuation calculations
+- Inventory health distribution calculation (healthy, low stock, out of stock)
+- 7-day movement data aggregation
+- RFC 4180 standard CSV export formatting and escaping
+- Defensive input validation (rejecting non-integer product IDs on stock endpoints)
 - Cross-connection database persistence
 - HTTP endpoints, HTML template rendering, and CSV exports
 
@@ -176,10 +190,19 @@ All 25 automated tests execute against an isolated temporary SQLite database, ve
 
 | Paradigm | Implemented In | Demonstration in Code |
 |---|---|---|
-| **Object-Oriented Programming (OOP)** | `database.py`, `models.py`, `inventory_service.py` | Encapsulation of DB access; domain classes (`Product`, `StockTransaction`) with factory methods (`from_row`); Service layer pattern with dependency injection. |
+| **Object-Oriented Programming (OOP)** | `database.py`, `models.py`, `inventory_service.py` | Encapsulation of DB access; domain classes (`Product`, `StockTransaction`) with factory methods (`from_row`); Service layer pattern with dependency injection and atomic transaction management. |
 | **Procedural Programming** | `utils.py` | Stateless, pure functions taking explicit inputs and returning clean outputs for validation (`validate_product_data`), computation (`calculate_inventory_value`), and formatting (`format_currency`). |
 | **Event-Driven Programming** | `static/js/app.js`, `app.py` | Browser DOM event listeners (`input`, `change`, `submit`, `click`) controlling client interaction; Flask routes acting as HTTP request event handlers. |
 
 For an in-depth architectural breakdown, refer to [docs/architecture.md](docs/architecture.md).  
 For workflow diagrams, refer to [docs/flowchart.md](docs/flowchart.md).
 
+---
+
+## 🔒 Security & Deployment Scope
+
+Stockly is architected as an offline-capable, local-first inventory management system suitable for small business operations, standalone retail counters, and educational demonstration:
+- **Parameterization:** All database operations use strictly parameterized SQL queries (`?`) to prevent SQL injection vulnerabilities.
+- **Data Integrity:** Foreign keys are explicitly enabled on every SQLite connection via `PRAGMA foreign_keys = ON;`.
+- **Environment Configuration:** Flask's `SECRET_KEY` and debug modes are configurable via environment variables (`os.environ.get('SECRET_KEY')`), falling back to safe local development defaults.
+- **Production Scope:** For multi-tenant or public cloud deployments, it is recommended to introduce session-based user authentication (e.g. Flask-Login or OAuth), CSRF protection tokens on all form submissions (e.g. Flask-WTF), and run Flask behind a production WSGI HTTP server (e.g. Gunicorn) with TLS/HTTPS.

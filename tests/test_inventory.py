@@ -365,6 +365,60 @@ class TestStocklyService(unittest.TestCase):
         formatted_date = format_datetime('2026-11-19 14:30:00')
         self.assertIn('19 Nov 2026', formatted_date)
 
+    # ------------------------------------------------------------------------
+    # 19. Inventory Health Calculation
+    # ------------------------------------------------------------------------
+    def test_inventory_health_stats(self):
+        # Product 1: healthy (qty 20 > reorder 5)
+        self.service.add_product(self._sample_product_data(sku='H1', quantity='20', reorder_level='5'))
+        # Product 2: low stock (qty 3 <= reorder 5)
+        self.service.add_product(self._sample_product_data(sku='L1', quantity='3', reorder_level='5'))
+        # Product 3: out of stock (qty 0)
+        self.service.add_product(self._sample_product_data(sku='O1', quantity='0', reorder_level='5'))
+
+        health = self.service.get_inventory_health_stats()
+        self.assertEqual(health['total_active'], 3)
+        self.assertEqual(health['healthy_count'], 1)
+        self.assertEqual(health['low_stock_count'], 1)
+        self.assertEqual(health['out_of_stock_count'], 1)
+        self.assertEqual(health['attention_count'], 2)
+        # 1 / 3 = 33%
+        self.assertEqual(health['health_percent'], 33)
+
+    # ------------------------------------------------------------------------
+    # 20. Daily Movement 7-Day Statistics
+    # ------------------------------------------------------------------------
+    def test_daily_movement_stats(self):
+        p_id, _ = self.service.add_product(self._sample_product_data(sku='DM-1', quantity='10'))
+        self.service.stock_in(p_id, '5', 'Batch restock')
+        self.service.stock_out(p_id, '2', 'Order')
+
+        movements = self.service.get_daily_movement_stats(days=7)
+        self.assertEqual(len(movements), 7)
+        # Today's movement should reflect stock in (opening 10 + 5) and stock out (2)
+        today_data = movements[-1]
+        self.assertGreaterEqual(today_data['stock_in'], 15)
+        self.assertGreaterEqual(today_data['stock_out'], 2)
+
+    # ------------------------------------------------------------------------
+    # 21. CSV Export RFC4180 Escaping (handles quotes and commas safely)
+    # ------------------------------------------------------------------------
+    def test_csv_export_rfc4180_escaping(self):
+        self.service.add_product(self._sample_product_data(
+            name='Cable, HDMI "High-Speed", 2m',
+            sku='CBL-HDMI-2M'
+        ))
+        csv_text = self.service.export_products_csv()
+        import csv
+        import io
+        reader = csv.reader(io.StringIO(csv_text))
+        rows = list(reader)
+        # Verify header + at least 1 product row
+        self.assertGreaterEqual(len(rows), 2)
+        # Name should be read intact with commas and quotes
+        names = [r[2] for r in rows[1:]]
+        self.assertIn('Cable, HDMI "High-Speed", 2m', names)
+
 
 class TestStocklyFlaskRoutes(unittest.TestCase):
     """Integration tests for Flask HTTP routing using the Flask test client."""
@@ -413,6 +467,17 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
         res_txn = self.client.get('/reports/export/transactions')
         self.assertEqual(res_txn.status_code, 200)
         self.assertEqual(res_txn.mimetype, 'text/csv')
+
+
+    def test_stock_in_invalid_product_id(self):
+        res = self.client.post('/stock/in', data={'product_id': 'invalid', 'quantity': '5'})
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b'Please select a valid product', res.data)
+
+    def test_stock_out_invalid_product_id(self):
+        res = self.client.post('/stock/out', data={'product_id': '-1', 'quantity': '5'})
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b'Please select a valid product', res.data)
 
 
 if __name__ == '__main__':

@@ -15,7 +15,7 @@
                 <line x1="19" y1="12" x2="5" y2="12"></line>
                 <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
-            <span>Back to Products</span>
+            <span>Back to Catalog</span>
         </a>
     </div>
 </div>
@@ -29,7 +29,7 @@
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
         <div>
-            <strong>Unable to save product:</strong>
+            <strong>Validation Error:</strong>
             <ul style="margin: 4px 0 0 16px;">
                 {% for err in errors %}
                     <li>{{ err }}</li>
@@ -39,88 +39,140 @@
     </div>
 {% endif %}
 
-<!-- Form Container Card -->
-<div class="card" style="max-width: 800px;">
-    <div class="card-header">
-        <div class="card-title-group">
-            <h2 class="card-title">{{ 'Product Specification' if mode == 'add' else 'Update Parameters' }}</h2>
+<!-- Balanced Two-Column Workspace Layout -->
+<div class="product-form-layout">
+    <!-- LEFT: Form Specification -->
+    <div class="card" style="margin-bottom: 0;">
+        <div class="card-header">
+            <div class="card-title-group">
+                <h2 class="card-title">{{ 'Product Specification' if mode == 'add' else 'Edit Specification' }}</h2>
+            </div>
+            <span class="card-subtitle">All marked fields required</span>
         </div>
-        <span class="card-subtitle">All marked fields are required</span>
+        <div class="card-body">
+            <form id="product-form" method="POST" action="{{ '/products/add' if mode == 'add' else '/products/edit/' ~ product_id }}">
+                
+                <!-- Section 1: Identity & Classification -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Product Identity</h3>
+                    <p class="form-section-desc">Identifiers and category classification for catalog search.</p>
+
+                    <div class="form-grid-2">
+                        <div class="form-group">
+                            <label class="form-label" for="name">Product Name <span class="required">*</span></label>
+                            <input type="text" id="name" name="name" class="form-control" required placeholder="e.g., Wireless Mechanical Keyboard" value="{{ product.get('name', '') }}">
+                            <span class="form-text">Display name used in listings and customer invoices.</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="sku">SKU Code <span class="required">*</span></label>
+                            <input type="text" id="sku" name="sku" class="form-control" required placeholder="e.g., ELE-KBD-01" value="{{ product.get('sku', '') }}" style="font-family: ui-monospace, monospace;">
+                            <span class="form-text">Unique barcode or internal tracking code.</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="category">Category <span class="required">*</span></label>
+                        <select id="category" name="category" class="form-control" required>
+                            {% for cat in categories %}
+                                <option value="{{ cat }}" {% if product.get('category', '') == cat %}selected{% endif %}>{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                        <span class="form-text">Used for inventory distribution analytics.</span>
+                    </div>
+                </div>
+
+                <!-- Section 2: Valuation & Stock Levels -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Pricing &amp; Thresholds</h3>
+                    <p class="form-section-desc">Valuation and automatic alert triggering parameters.</p>
+
+                    <div class="form-grid-{% if mode == 'add' %}3{% else %}2{% endif %}">
+                        <div class="form-group">
+                            <label class="form-label" for="price">Unit Price (₹) <span class="required">*</span></label>
+                            <input type="number" id="price" name="price" class="form-control" step="0.01" min="0" required placeholder="0.00" value="{{ product.get('price', product.get('unit_price', '')) }}">
+                            <span class="form-text">Base unit price in INR.</span>
+                        </div>
+
+                        {% if mode == 'add' %}
+                        <div class="form-group">
+                            <label class="form-label" for="quantity">Opening Quantity <span class="required">*</span></label>
+                            <input type="number" id="quantity" name="quantity" class="form-control" min="0" required placeholder="0" value="{{ product.get('quantity', '0') }}">
+                            <span class="form-text">Initial on-hand units count.</span>
+                        </div>
+                        {% endif %}
+
+                        <div class="form-group">
+                            <label class="form-label" for="reorder_level">Reorder Level <span class="required">*</span></label>
+                            <input type="number" id="reorder_level" name="reorder_level" class="form-control" min="0" required placeholder="10" value="{{ product.get('reorder_level', '10') }}">
+                            <span class="form-text">Minimum threshold before low-stock alert triggers.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Submission -->
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                    <a href="/products" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                            <polyline points="7 3 7 8 15 8"></polyline>
+                        </svg>
+                        <span>{{ 'Save Product' if mode == 'add' else 'Update Product' }}</span>
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-    <div class="card-body">
-        <form id="product-form" method="POST" action="{{ '/products/add' if mode == 'add' else '/products/edit/' ~ product_id }}">
-            
-            <!-- Section 1: Basic Information -->
-            <div class="form-section">
-                <h3 class="form-section-title">Basic Information</h3>
-                <p class="form-section-desc">Identifiers and category classification for the product catalog.</p>
 
-                <div class="form-grid-2">
-                    <div class="form-group">
-                        <label class="form-label" for="name">Product Name <span class="required">*</span></label>
-                        <input type="text" id="name" name="name" class="form-control" required placeholder="e.g., Wireless Mechanical Keyboard" value="{{ product.get('name', '') }}">
-                        <span class="form-text">Official display title used in listings and invoices.</span>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="sku">SKU Code <span class="required">*</span></label>
-                        <input type="text" id="sku" name="sku" class="form-control" required placeholder="e.g., ELE-KBD-01" value="{{ product.get('sku', '') }}" style="font-family: ui-monospace, monospace;">
-                        <span class="form-text">Unique Stock Keeping Unit barcode or internal identifier.</span>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="category">Product Category <span class="required">*</span></label>
-                    <select id="category" name="category" class="form-control" required>
-                        {% for cat in categories %}
-                            <option value="{{ cat }}" {% if product.get('category', '') == cat %}selected{% endif %}>{{ cat }}</option>
-                        {% endfor %}
-                    </select>
-                    <span class="form-text">Used for grouped inventory reporting and analytics.</span>
-                </div>
-            </div>
-
-            <!-- Section 2: Pricing & Inventory Thresholds -->
-            <div class="form-section">
-                <h3 class="form-section-title">Pricing &amp; Thresholds</h3>
-                <p class="form-section-desc">Unit valuation and threshold levels for automatic stock monitoring.</p>
-
-                <div class="form-grid-{% if mode == 'add' %}3{% else %}2{% endif %}">
-                    <div class="form-group">
-                        <label class="form-label" for="price">Unit Price (₹) <span class="required">*</span></label>
-                        <input type="number" id="price" name="price" class="form-control" step="0.01" min="0" required placeholder="0.00" value="{{ product.get('price', product.get('unit_price', '')) }}">
-                        <span class="form-text">Base unit price in INR.</span>
-                    </div>
-
-                    {% if mode == 'add' %}
-                    <div class="form-group">
-                        <label class="form-label" for="quantity">Initial Opening Stock <span class="required">*</span></label>
-                        <input type="number" id="quantity" name="quantity" class="form-control" min="0" required placeholder="0" value="{{ product.get('quantity', '0') }}">
-                        <span class="form-text">Initial count logged as opening stock.</span>
-                    </div>
-                    {% endif %}
-
-                    <div class="form-group">
-                        <label class="form-label" for="reorder_level">Reorder Threshold <span class="required">*</span></label>
-                        <input type="number" id="reorder_level" name="reorder_level" class="form-control" min="0" required placeholder="10" value="{{ product.get('reorder_level', '10') }}">
-                        <span class="form-text">Triggers a Low Stock alert when on-hand stock reaches this count.</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Form Action Footer -->
-            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
-                <a href="/products" class="btn btn-secondary">Cancel</a>
-                <button type="submit" class="btn btn-primary">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                        <polyline points="7 3 7 8 15 8"></polyline>
+    <!-- RIGHT: Live Interactive Product Preview Panel -->
+    <div class="live-preview-card">
+        <div class="preview-badge-header">
+            <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Live Catalog Preview</span>
+            <span id="preview-status" class="badge badge-success">In Stock</span>
+        </div>
+        <div class="preview-body">
+            <div class="preview-product-banner">
+                <div class="preview-avatar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
                     </svg>
-                    <span>{{ 'Save Product' if mode == 'add' else 'Update Product' }}</span>
-                </button>
+                </div>
+                <div class="preview-title-group">
+                    <span id="preview-name" class="preview-name">{{ product.get('name', 'Product Title') or 'Product Title' }}</span>
+                    <span id="preview-sku" class="preview-sku">{{ product.get('sku', 'SKU-CODE') or 'SKU-CODE' }}</span>
+                </div>
             </div>
-        </form>
+
+            <div class="preview-metric-box">
+                <div class="preview-metric-item">
+                    <span class="preview-metric-label">Unit Price</span>
+                    <span id="preview-price" class="preview-metric-val">{{ product.get('price', 0)|currency }}</span>
+                </div>
+                <div class="preview-metric-item">
+                    <span class="preview-metric-label">Category</span>
+                    <span id="preview-category" class="preview-metric-val" style="font-size: 0.95rem; font-weight: 600;">{{ product.get('category', 'Electronics') }}</span>
+                </div>
+            </div>
+
+            <div class="preview-metric-box">
+                <div class="preview-metric-item">
+                    <span class="preview-metric-label">Available Stock</span>
+                    <span id="preview-stock" class="preview-metric-val">{{ product.get('quantity', 0) }} units</span>
+                </div>
+                <div class="preview-metric-item">
+                    <span class="preview-metric-label">Reorder Level</span>
+                    <span id="preview-reorder" class="preview-metric-val">{{ product.get('reorder_level', 10) }} units</span>
+                </div>
+            </div>
+
+            <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; border-top: 1px solid var(--border-color-subtle); padding-top: 12px;">
+                Changes entered on the left update this preview in real time before you commit to the database.
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

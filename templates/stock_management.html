@@ -7,7 +7,7 @@
 <div class="page-header">
     <div class="page-title-group">
         <h1 class="page-title">Stock Management</h1>
-        <p class="page-subtitle">Record incoming shipments (Stock In) or outgoing customer fulfillment (Stock Out).</p>
+        <p class="page-subtitle">Record incoming stock receipts or issue outgoing customer fulfillments with atomic audit tracking.</p>
     </div>
     <div class="page-actions">
         <a href="/transactions" class="btn btn-secondary">
@@ -42,121 +42,173 @@
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
         <div>
-            <strong>Transaction Failed</strong><br>
+            <strong>Operation Failed</strong><br>
             <span>{{ error_message }}</span>
         </div>
     </div>
 {% endif %}
 
-<!-- Movement Console Grid -->
-<div class="stock-console-grid">
-    <!-- Stock In Card -->
-    <div class="stock-action-card stock-in">
-        <div class="stock-card-header">
+<!-- Workspace Layout -->
+<div class="stock-workspace-layout">
+    <!-- LEFT: Segmented Operation Console -->
+    <div class="card" style="margin-bottom: 0;">
+        <div class="card-header">
             <div class="card-title-group">
-                <h2 class="card-title">Stock In &bull; Receive Inventory</h2>
+                <h2 class="card-title">Movement Console</h2>
             </div>
-            <span class="stock-type-tag tag-in">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <polyline points="19 12 12 19 5 12"></polyline>
-                </svg>
-                <span>Stock In</span>
-            </span>
+            <span class="card-subtitle">Select operation mode</span>
         </div>
         <div class="card-body">
-            <form method="POST" action="/stock/in" class="stock-form">
-                <div class="form-group">
-                    <label class="form-label" for="stock-in-product">Target Product <span class="required">*</span></label>
-                    <select id="stock-in-product" name="product_id" class="form-control stock-product-select" required>
-                        <option value="">Select a product to receive...</option>
-                        {% for p in products %}
-                            <option value="{{ p.product_id }}" data-quantity="{{ p.quantity }}">{{ p.name }} (SKU: {{ p.sku }})</option>
-                        {% endfor %}
-                    </select>
-                    <div class="stock-live-badge" style="display: none;">
-                        <span style="color: var(--text-secondary);">Current on-hand inventory:</span>
-                        <strong class="live-qty-value" style="color: var(--success);">0 units</strong>
+            <!-- Segmented Control Switcher -->
+            <div class="segmented-control-bar">
+                <button type="button" id="tab-stock-in" class="segmented-tab active-in">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <polyline points="19 12 12 19 5 12"></polyline>
+                    </svg>
+                    <span>Stock In (Receive Shipments)</span>
+                </button>
+                <button type="button" id="tab-stock-out" class="segmented-tab">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="12" y1="19" x2="12" y2="5"></line>
+                        <polyline points="5 12 12 5 19 12"></polyline>
+                    </svg>
+                    <span>Stock Out (Issue / Fulfill)</span>
+                </button>
+            </div>
+
+            <!-- Panel A: Stock In Form -->
+            <div id="panel-stock-in" class="stock-form-panel active">
+                <form method="POST" action="/stock/in" class="stock-form">
+                    <div class="form-group">
+                        <label class="form-label" for="stock-in-select">Select Product <span class="required">*</span></label>
+                        <select id="stock-in-select" name="product_id" class="form-control stock-product-select" required>
+                            <option value="">Choose a product from catalog...</option>
+                            {% for p in products %}
+                                <option value="{{ p.product_id }}" data-name="{{ p.name }}" data-sku="{{ p.sku }}" data-quantity="{{ p.quantity }}" data-reorder="{{ p.reorder_level }}">{{ p.name }} (Current: {{ p.quantity }} units)</option>
+                            {% endfor %}
+                        </select>
+                        <span class="form-text">Choose the active item being received into warehouse inventory.</span>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="stock-in-qty">Quantity to Receive <span class="required">*</span></label>
-                    <input type="number" id="stock-in-qty" name="quantity" class="form-control" min="1" required placeholder="Enter units count">
-                    <span class="form-text">Must be a positive integer greater than zero.</span>
-                </div>
+                    <div class="form-group">
+                        <label class="form-label" for="stock-in-qty">Quantity to Receive <span class="required">*</span></label>
+                        <input type="number" id="stock-in-qty" name="quantity" class="form-control" min="1" required placeholder="Units count to add">
+                        <span class="form-text">Must be a whole positive integer greater than zero.</span>
+                    </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="stock-in-reason">Reference / Remarks</label>
-                    <textarea id="stock-in-reason" name="reason" class="form-control" rows="3" placeholder="e.g., Supplier Purchase Order #402, Warehouse intake"></textarea>
-                    <span class="form-text">Optional audit remark for tracking purchase references.</span>
-                </div>
+                    <div class="form-group">
+                        <label class="form-label" for="stock-in-reason">Reference / Purchase Remarks</label>
+                        <textarea id="stock-in-reason" name="reason" class="form-control" rows="3" placeholder="e.g., Supplier delivery PO #409, batch intake, warehouse replenishment"></textarea>
+                        <span class="form-text">Logged in audit trail for future traceability.</span>
+                    </div>
 
-                <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
-                    <button type="submit" class="btn btn-success" style="width: 100%;">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <polyline points="19 12 12 19 5 12"></polyline>
-                        </svg>
-                        <span>Confirm Stock In</span>
-                    </button>
-                </div>
-            </form>
+                    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <button type="submit" class="btn btn-success" style="width: 100%;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <polyline points="19 12 12 19 5 12"></polyline>
+                            </svg>
+                            <span>Confirm Stock In</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Panel B: Stock Out Form -->
+            <div id="panel-stock-out" class="stock-form-panel">
+                <form method="POST" action="/stock/out" class="stock-form">
+                    <div class="form-group">
+                        <label class="form-label" for="stock-out-select">Select Product <span class="required">*</span></label>
+                        <select id="stock-out-select" name="product_id" class="form-control stock-product-select" required>
+                            <option value="">Choose a product from catalog...</option>
+                            {% for p in products %}
+                                <option value="{{ p.product_id }}" data-name="{{ p.name }}" data-sku="{{ p.sku }}" data-quantity="{{ p.quantity }}" data-reorder="{{ p.reorder_level }}">{{ p.name }} (Current: {{ p.quantity }} units)</option>
+                            {% endfor %}
+                        </select>
+                        <span class="form-text">Choose the active item being deducted or fulfilled.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="stock-out-qty">Quantity to Remove <span class="required">*</span></label>
+                        <input type="number" id="stock-out-qty" name="quantity" class="form-control" min="1" required placeholder="Units count to deduct">
+                        <span class="form-text">Cannot exceed current available stock.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="stock-out-reason">Reason / Customer Invoice Remarks</label>
+                        <textarea id="stock-out-reason" name="reason" class="form-control" rows="3" placeholder="e.g., Customer invoice #8812, retail walk-in sale, write-off"></textarea>
+                        <span class="form-text">Logged in audit trail for transaction tracking.</span>
+                    </div>
+
+                    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <button type="submit" class="btn btn-danger" style="width: 100%;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="19" x2="12" y2="5"></line>
+                                <polyline points="5 12 12 5 19 12"></polyline>
+                            </svg>
+                            <span>Confirm Stock Out</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
-    <!-- Stock Out Card -->
-    <div class="stock-action-card stock-out">
-        <div class="stock-card-header">
-            <div class="card-title-group">
-                <h2 class="card-title">Stock Out &bull; Issue / Fulfill</h2>
-            </div>
-            <span class="stock-type-tag tag-out">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                    <line x1="12" y1="19" x2="12" y2="5"></line>
-                    <polyline points="5 12 12 5 19 12"></polyline>
-                </svg>
-                <span>Stock Out</span>
-            </span>
+    <!-- RIGHT: Adjacent Product Information & Projected Balance Inspector -->
+    <div class="live-preview-card">
+        <div class="preview-badge-header">
+            <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Product Inspector</span>
+            <span id="inspector-status-badge" class="badge badge-secondary">Select Product</span>
         </div>
-        <div class="card-body">
-            <form method="POST" action="/stock/out" class="stock-form">
-                <div class="form-group">
-                    <label class="form-label" for="stock-out-product">Target Product <span class="required">*</span></label>
-                    <select id="stock-out-product" name="product_id" class="form-control stock-product-select" required>
-                        <option value="">Select a product to issue...</option>
-                        {% for p in products %}
-                            <option value="{{ p.product_id }}" data-quantity="{{ p.quantity }}">{{ p.name }} (SKU: {{ p.sku }})</option>
-                        {% endfor %}
-                    </select>
-                    <div class="stock-live-badge" style="display: none;">
-                        <span style="color: var(--text-secondary);">Current on-hand inventory:</span>
-                        <strong class="live-qty-value" style="color: var(--primary-blue);">0 units</strong>
-                    </div>
+        <div class="preview-body">
+            <div class="preview-product-banner">
+                <div class="preview-avatar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    </svg>
                 </div>
+                <div class="preview-title-group">
+                    <span id="inspector-product-name" class="preview-name">No product selected</span>
+                    <span id="inspector-product-sku" class="preview-sku">Select from the dropdown</span>
+                </div>
+            </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="stock-out-qty">Quantity to Remove <span class="required">*</span></label>
-                    <input type="number" id="stock-out-qty" name="quantity" class="form-control" min="1" required placeholder="Enter units count">
-                    <span class="form-text">Quantity cannot exceed currently available stock.</span>
+            <div class="preview-metric-box">
+                <div class="preview-metric-item">
+                    <span class="preview-metric-label">Current Stock</span>
+                    <span id="inspector-current-stock" class="preview-metric-val">0 units</span>
                 </div>
+                <div class="preview-metric-item">
+                    <span class="preview-metric-label">Reorder Level</span>
+                    <span id="inspector-reorder-level" class="preview-metric-val">10 units</span>
+                </div>
+            </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="stock-out-reason">Reason / Remarks</label>
-                    <textarea id="stock-out-reason" name="reason" class="form-control" rows="3" placeholder="e.g., Sales Order #892, Customer invoice, Damage write-off"></textarea>
-                    <span class="form-text">Document reason for outgoing inventory deductions.</span>
+            <div class="preview-metric-box" style="background-color: var(--primary-blue-subtle); border-color: var(--primary-blue-border);">
+                <div class="preview-metric-item">
+                    <span class="preview-metric-label" style="color: var(--primary-blue);">Projected Balance</span>
+                    <span id="inspector-projected-stock" class="preview-metric-val" style="color: var(--primary-blue);">0 units</span>
                 </div>
+                <div class="preview-metric-item">
+                    <span class="preview-metric-label" style="color: var(--primary-blue);">Operation Health</span>
+                    <span style="font-size: 0.8125rem; font-weight: 600; color: var(--primary-blue); margin-top: 4px;">Atomic Commit</span>
+                </div>
+            </div>
 
-                <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
-                    <button type="submit" class="btn btn-danger" style="width: 100%;">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="19" x2="12" y2="5"></line>
-                            <polyline points="5 12 12 5 19 12"></polyline>
-                        </svg>
-                        <span>Confirm Stock Out</span>
-                    </button>
+            <!-- Mini Stock Gauge Bar -->
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 6px;">
+                    <span>Inventory Level Gauge</span>
                 </div>
-            </form>
+                <div class="category-progress-track">
+                    <div id="inspector-meter-fill" class="category-progress-fill" style="width: 0%; background-color: var(--primary-blue);"></div>
+                </div>
+            </div>
+
+            <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; border-top: 1px solid var(--border-color-subtle); padding-top: 12px;">
+                Selecting a product and entering a quantity updates the projected balance automatically. Stock Out operations exceeding available units will be blocked.
+            </div>
         </div>
     </div>
 </div>

@@ -10,9 +10,12 @@ a common OOP architectural approach.
 """
 
 from datetime import datetime
+import logging
 from database import Database
 from models import Product, StockTransaction
 from utils import validate_product_data, validate_stock_movement
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryService:
@@ -79,9 +82,10 @@ class InventoryService:
 
             conn.commit()
             return product_id, []
-        except Exception as e:
+        except Exception:
             conn.rollback()
-            return None, [f'Database error: {str(e)}']
+            logger.exception('Failed to add product')
+            return None, ['Unable to save the product. Please try again.']
         finally:
             conn.close()
 
@@ -142,9 +146,10 @@ class InventoryService:
             )
             conn.commit()
             return True, []
-        except Exception as e:
+        except Exception:
             conn.rollback()
-            return False, [f'Database error: {str(e)}']
+            logger.exception('Failed to update product %s', product_id)
+            return False, ['Unable to update the product. Please try again.']
         finally:
             conn.close()
 
@@ -167,9 +172,10 @@ class InventoryService:
             )
             conn.commit()
             return True, None
-        except Exception as e:
+        except Exception:
             conn.rollback()
-            return False, f'Database error: {str(e)}'
+            logger.exception('Failed to archive product %s', product_id)
+            return False, 'Unable to archive the product. Please try again.'
         finally:
             conn.close()
 
@@ -208,9 +214,10 @@ class InventoryService:
             )
             conn.commit()
             return True, f'Successfully added {quantity} units. New stock: {stock_after}.', stock_after
-        except Exception as e:
+        except Exception:
             conn.rollback()
-            return False, f'Database error: {str(e)}', None
+            logger.exception('Failed to stock in product %s', product_id)
+            return False, 'Unable to record stock in. Please try again.', None
         finally:
             conn.close()
 
@@ -245,9 +252,10 @@ class InventoryService:
             )
             conn.commit()
             return True, f'Successfully removed {quantity} units. New stock: {stock_after}.', stock_after
-        except Exception as e:
+        except Exception:
             conn.rollback()
-            return False, f'Database error: {str(e)}', None
+            logger.exception('Failed to stock out product %s', product_id)
+            return False, 'Unable to record stock out. Please try again.', None
         finally:
             conn.close()
 
@@ -454,37 +462,125 @@ class InventoryService:
             'categories': self.get_category_breakdown(),
         }
 
+    def get_inventory_health_stats(self):
+        """
+        Calculate inventory health metrics across all active products:
+        - Healthy: quantity > reorder_level
+        - Low stock: 0 < quantity <= reorder_level
+        - Out of stock: quantity == 0
+        """
+        products = self.get_all_products(include_archived=False)
+        total_active = len(products)
+        if total_active == 0:
+            return {
+                'total_active': 0,
+                'healthy_count': 0,
+                'low_stock_count': 0,
+                'out_of_stock_count': 0,
+                'health_percent': 100,
+                'attention_count': 0,
+            }
+        healthy_count = sum(1 for p in products if p.quantity > p.reorder_level)
+        low_stock_count = sum(1 for p in products if 0 < p.quantity <= p.reorder_level)
+        out_of_stock_count = sum(1 for p in products if p.quantity == 0)
+        health_percent = int(round((healthy_count / total_active) * 100))
+        return {
+            'total_active': total_active,
+            'healthy_count': healthy_count,
+            'low_stock_count': low_stock_count,
+            'out_of_stock_count': out_of_stock_count,
+            'health_percent': health_percent,
+            'attention_count': low_stock_count + out_of_stock_count,
+        }
+
+    def get_daily_movement_stats(self, days=7):
+        """
+        Retrieve daily Stock In and Stock Out sums for the last N calendar days
+        based on actual database transaction records.
+        """
+        conn = self.db.get_connection()
+        try:
+            from datetime import date, timedelta
+            today = date.today()
+            dates = [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
+            date_strings = [d.strftime('%Y-%m-%d') for d in dates]
+
+            start_date = date_strings[0]
+            end_date = date_strings[-1] + ' 23:59:59'
+
+            rows = conn.execute(
+                '''SELECT substr(created_at, 1, 10) as txn_date,
+                          transaction_type,
+                          SUM(quantity) as total_qty
+                   FROM stock_transactions
+                   WHERE created_at >= ? AND created_at <= ?
+                   GROUP BY substr(created_at, 1, 10), transaction_type''',
+                (start_date, end_date)
+            ).fetchall()
+
+            totals = {}
+            for r in rows:
+                key = (r['txn_date'], r['transaction_type'])
+                totals[key] = r['total_qty']
+
+            result = []
+            for d in dates:
+                d_str = d.strftime('%Y-%m-%d')
+                stock_in = totals.get((d_str, 'STOCK_IN'), 0) + totals.get((d_str, 'OPENING'), 0)
+                stock_out = totals.get((d_str, 'STOCK_OUT'), 0)
+                result.append({
+                    'date': d_str,
+                    'label': d.strftime('%d %b'),
+                    'day_name': d.strftime('%a'),
+                    'stock_in': int(stock_in or 0),
+                    'stock_out': int(stock_out or 0),
+                })
+            return result
+        finally:
+            conn.close()
+
     # ========================================================================
-    # CSV EXPORT
+    # CSV EXPORT (using standard python csv.writer for safe escaping)
     # ========================================================================
 
     def export_products_csv(self):
-        """Generate CSV string of all products."""
+        """Generate CSV string of all products with safe RFC 4180 escaping."""
+        import csv
+        import io
+        output = io.StringIO()
+        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow([
+            'Product ID', 'SKU', 'Name', 'Category', 'Price', 'Quantity',
+            'Reorder Level', 'Status', 'Stock Status', 'Created', 'Updated'
+        ])
         products = self.get_all_products(include_archived=True)
-        lines = ['Product ID,SKU,Name,Category,Price,Quantity,Reorder Level,'
-                 'Status,Stock Status,Created,Updated']
         for p in products:
             status = 'Active' if p.is_active else 'Archived'
             stock_status = p.get_stock_status().replace('_', ' ').title()
-            lines.append(
-                f'{p.product_id},"{p.sku}","{p.name}","{p.category}",'
-                f'{p.price},{p.quantity},{p.reorder_level},'
-                f'{status},{stock_status},"{p.created_at}","{p.updated_at}"'
-            )
-        return '\n'.join(lines)
+            writer.writerow([
+                p.product_id, p.sku, p.name, p.category, p.price, p.quantity,
+                p.reorder_level, status, stock_status, p.created_at, p.updated_at
+            ])
+        return output.getvalue()
 
     def export_transactions_csv(self):
-        """Generate CSV string of all transactions."""
+        """Generate CSV string of all transactions with safe RFC 4180 escaping."""
+        import csv
+        import io
+        output = io.StringIO()
+        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow([
+            'Transaction ID', 'Date', 'Product', 'SKU', 'Type', 'Quantity',
+            'Stock Before', 'Stock After', 'Reason'
+        ])
         transactions = self.get_transactions()
-        lines = ['Transaction ID,Date,Product,SKU,Type,Quantity,'
-                 'Stock Before,Stock After,Reason']
         for t in transactions:
-            lines.append(
-                f'{t.transaction_id},"{t.created_at}","{t.product_name}",'
-                f'"{t.product_sku}",{t.transaction_type},{t.quantity},'
-                f'{t.stock_before},{t.stock_after},"{t.reason}"'
-            )
-        return '\n'.join(lines)
+            writer.writerow([
+                t.transaction_id, t.created_at, t.product_name, t.product_sku,
+                t.transaction_type, t.quantity, t.stock_before, t.stock_after,
+                t.reason
+            ])
+        return output.getvalue()
 
     # ========================================================================
     # INTERNAL HELPERS
@@ -500,4 +596,3 @@ class InventoryService:
             return {row['sku'].upper(): row['product_id'] for row in rows}
         finally:
             conn.close()
-

@@ -8,27 +8,53 @@ PROGRAMMING PARADIGM: Event-Driven (HTTP request → route handler → response)
 Each Flask route is an event handler triggered by a browser request.
 """
 
+import os
+import logging
 from flask import (Flask, render_template, request, redirect,
                    url_for, flash, Response)
 from inventory_service import InventoryService
 from models import Product
 from utils import format_currency, format_datetime, format_stock_status
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
-# Application factory
+# Application factory & Configuration
 # ---------------------------------------------------------------------------
 app = Flask(__name__)
-app.secret_key = 'stockly-secret-key-dev'
+# Secure secret key with safe local dev fallback
+app.secret_key = os.environ.get('SECRET_KEY', 'stockly-dev-secret-key-fallback-2026')
 
 # Create the shared service instance
 service = InventoryService()
 
 # ---------------------------------------------------------------------------
-# Jinja2 custom filters — available in every template
+# Jinja2 custom filters & context processors
 # ---------------------------------------------------------------------------
 app.jinja_env.filters['currency'] = format_currency
 app.jinja_env.filters['datefmt'] = format_datetime
 app.jinja_env.filters['stockstatus'] = format_stock_status
+
+
+@app.context_processor
+def inject_global_context():
+    """Inject global real-time inventory health and asset versioning into all templates."""
+    try:
+        health_stats = service.get_inventory_health_stats()
+    except Exception:
+        logger.exception('Unable to calculate inventory health for the shared layout')
+        health_stats = {
+            'total_active': 0,
+            'healthy_count': 0,
+            'low_stock_count': 0,
+            'out_of_stock_count': 0,
+            'health_percent': 100,
+            'attention_count': 0,
+        }
+    return {
+        'inventory_health': health_stats,
+        'cache_bust': '2.2.0',
+    }
 
 
 # ============================================================================
@@ -39,17 +65,22 @@ app.jinja_env.filters['stockstatus'] = format_stock_status
 def dashboard():
     """
     Event-Driven: GET / triggers dashboard rendering.
-    All KPI metrics are computed from the database.
+    Calculates KPI metrics, 7-day movement data, and health breakdown from SQLite.
     """
     stats = service.get_dashboard_stats()
     low_stock = service.get_low_stock_products()
-    recent_txns = service.get_recent_transactions(limit=8)
+    recent_txns = service.get_recent_transactions(limit=6)
     category_data = service.get_category_breakdown()
+    health_stats = service.get_inventory_health_stats()
+    movement_stats = service.get_daily_movement_stats(days=7)
+
     return render_template('dashboard.html',
                            stats=stats,
                            low_stock_products=low_stock,
                            recent_transactions=recent_txns,
-                           category_data=category_data)
+                           category_data=category_data,
+                           health_stats=health_stats,
+                           movement_stats=movement_stats)
 
 
 # ============================================================================
@@ -176,18 +207,18 @@ def stock_in():
     """
     Event-Driven: POST /stock/in triggers stock-in processing.
     """
-    product_id = request.form.get('product_id', '')
+    product_id_raw = (request.form.get('product_id') or '').strip()
     quantity = request.form.get('quantity', '')
     reason = request.form.get('reason', '')
 
-    if not product_id:
+    if not product_id_raw or not product_id_raw.isdigit() or int(product_id_raw) <= 0:
         active_products = service.get_all_products(include_archived=False)
         return render_template('stock_management.html',
                                products=active_products,
                                success_message=None,
-                               error_message='Please select a product.')
+                               error_message='Please select a valid product.')
 
-    success, message, new_qty = service.stock_in(int(product_id), quantity, reason)
+    success, message, new_qty = service.stock_in(int(product_id_raw), quantity, reason)
     active_products = service.get_all_products(include_archived=False)
     return render_template('stock_management.html',
                            products=active_products,
@@ -200,18 +231,18 @@ def stock_out():
     """
     Event-Driven: POST /stock/out triggers stock-out processing.
     """
-    product_id = request.form.get('product_id', '')
+    product_id_raw = (request.form.get('product_id') or '').strip()
     quantity = request.form.get('quantity', '')
     reason = request.form.get('reason', '')
 
-    if not product_id:
+    if not product_id_raw or not product_id_raw.isdigit() or int(product_id_raw) <= 0:
         active_products = service.get_all_products(include_archived=False)
         return render_template('stock_management.html',
                                products=active_products,
                                success_message=None,
-                               error_message='Please select a product.')
+                               error_message='Please select a valid product.')
 
-    success, message, new_qty = service.stock_out(int(product_id), quantity, reason)
+    success, message, new_qty = service.stock_out(int(product_id_raw), quantity, reason)
     active_products = service.get_all_products(include_archived=False)
     return render_template('stock_management.html',
                            products=active_products,
@@ -305,14 +336,13 @@ def settings():
     app_info = {
         'name': 'Stockly',
         'tagline': 'Smarter Stock. Simpler Management.',
-        'academic_title': ('Design and Development of Stockly – '
-                           'A Web-Based Inventory and Resource Management System'),
+        'edition': 'Enterprise Edition',
         'currency': 'Indian Rupees (₹)',
         'currency_symbol': '₹',
         'categories': Product.CATEGORIES,
-        'domain': 'Inventory Management',
-        'target_users': 'Small retail business owners and inventory staff',
-        'version': '1.0.0',
+        'domain': 'Inventory & Resource Management',
+        'target_users': 'Retail store owners, supply chain operators & warehouse staff',
+        'version': '2.2.0',
     }
     return render_template('settings.html', app_info=app_info)
 
@@ -338,11 +368,11 @@ def internal_error(e):
 # ============================================================================
 
 if __name__ == '__main__':
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1')
     print('=' * 60)
     print('  STOCKLY — Inventory & Resource Management System')
     print('  Smarter Stock. Simpler Management.')
     print('=' * 60)
-    print('  Starting server at http://127.0.0.1:5000')
+    print(f'  Starting server at http://127.0.0.1:5000 (Debug: {debug_mode})')
     print('=' * 60)
-    app.run(debug=True, host='127.0.0.1', port=5000)
-
+    app.run(debug=debug_mode, host='127.0.0.1', port=5000)

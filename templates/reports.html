@@ -7,10 +7,10 @@
 <div class="page-header">
     <div class="page-title-group">
         <h1 class="page-title">Reports &amp; Analytics</h1>
-        <p class="page-subtitle">Real-time inventory valuation, stock health diagnostics, and CSV data export.</p>
+        <p class="page-subtitle">Real-time inventory valuation, stock health diagnostics, and verified data exports.</p>
     </div>
     <div class="page-actions">
-        <a href="/reports/export/products" class="btn btn-secondary">
+        <a href="/reports/export/products" class="btn btn-secondary" title="Export product catalog as RFC 4180 CSV">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7 10 12 15 17 10"></polyline>
@@ -18,7 +18,7 @@
             </svg>
             <span>Export Products CSV</span>
         </a>
-        <a href="/reports/export/transactions" class="btn btn-primary">
+        <a href="/reports/export/transactions" class="btn btn-primary" title="Export transaction log as RFC 4180 CSV">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7 10 12 15 17 10"></polyline>
@@ -36,19 +36,19 @@
         <span class="summary-metric-val">{{ summary.total_active_products }}</span>
     </div>
     <div class="summary-metric-item">
-        <span class="summary-metric-label">Total Units</span>
+        <span class="summary-metric-label">Total Units on Hand</span>
         <span class="summary-metric-val">{{ summary.total_units }}</span>
     </div>
     <div class="summary-metric-item">
-        <span class="summary-metric-label">Total Asset Value</span>
+        <span class="summary-metric-label">Total Asset Valuation</span>
         <span class="summary-metric-val" style="color: var(--primary-blue);">{{ summary.total_value|currency }}</span>
     </div>
     <div class="summary-metric-item">
-        <span class="summary-metric-label">Low Stock Items</span>
+        <span class="summary-metric-label">Low Stock Alerts</span>
         <span class="summary-metric-val" style="color: var(--warning);">{{ summary.low_stock_count }}</span>
     </div>
     <div class="summary-metric-item">
-        <span class="summary-metric-label">Out of Stock Items</span>
+        <span class="summary-metric-label">Stock Depletions</span>
         <span class="summary-metric-val" style="color: var(--danger);">{{ summary.out_of_stock_count }}</span>
     </div>
 </div>
@@ -59,9 +59,9 @@
     <div class="card">
         <div class="card-header">
             <div class="card-title-group">
-                <h2 class="card-title">Category Valuation &amp; Units</h2>
+                <h2 class="card-title">Category Valuation &amp; Distribution</h2>
+                <span class="card-subtitle">Aggregated inventory volume by catalog category</span>
             </div>
-            <span class="card-subtitle">Active inventory breakdown</span>
         </div>
         <div class="card-body no-padding">
             {% if category_breakdown %}
@@ -70,18 +70,32 @@
                         <thead>
                             <tr>
                                 <th>Category</th>
-                                <th>Items</th>
-                                <th>Stock Volume</th>
-                                <th style="text-align: right;">Total Value</th>
+                                <th style="width: 80px; text-align: center;">SKUs</th>
+                                <th style="width: 140px;">Volume Share</th>
+                                <th style="text-align: right;">Total Units</th>
+                                <th style="text-align: right;">Valuation</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for cat in category_breakdown %}
                                 <tr>
-                                    <td class="cell-product-name">{{ cat.category }}</td>
-                                    <td class="cell-muted">{{ cat.product_count }} SKUs</td>
-                                    <td style="font-weight: 600;">{{ cat.total_quantity }} units</td>
-                                    <td style="text-align: right; font-weight: 600; color: var(--primary-blue);">{{ cat.total_value|currency }}</td>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <span class="cell-product-name">{{ cat.category }}</span>
+                                        </div>
+                                    </td>
+                                    <td style="text-align: center;" class="cell-muted">{{ cat.product_count }}</td>
+                                    <td>
+                                        {% set vol_pct = ((cat.total_quantity / summary.total_units) * 100)|round(1) if summary.total_units > 0 else 0 %}
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <div style="flex: 1; height: 6px; background-color: var(--border-color); border-radius: 999px; overflow: hidden;">
+                                                <div style="width: {{ vol_pct }}%; height: 100%; background-color: var(--primary-blue); border-radius: 999px;"></div>
+                                            </div>
+                                            <span style="font-size: 0.75rem; color: var(--text-muted); width: 32px; text-align: right; font-variant-numeric: tabular-nums;">{{ vol_pct }}%</span>
+                                        </div>
+                                    </td>
+                                    <td style="text-align: right; font-weight: 600; font-variant-numeric: tabular-nums;">{{ cat.total_quantity }}</td>
+                                    <td style="text-align: right; font-weight: 600; color: var(--primary-blue); font-variant-numeric: tabular-nums;">{{ cat.total_value|currency }}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
@@ -106,9 +120,15 @@
     <div class="card">
         <div class="card-header">
             <div class="card-title-group">
-                <h2 class="card-title">Out of Stock Depletions</h2>
+                <h2 class="card-title">Stock Depletions (Out of Stock)</h2>
+                <span class="card-subtitle">Zero on-hand units requiring immediate replenishment</span>
             </div>
-            <span class="card-subtitle">Zero on-hand quantity</span>
+            {% if out_of_stock %}
+                <span class="badge badge-danger">
+                    <span class="badge-dot"></span>
+                    <span>{{ out_of_stock|length }} Critical</span>
+                </span>
+            {% endif %}
         </div>
         <div class="card-body no-padding">
             {% if out_of_stock %}
@@ -125,13 +145,15 @@
                         <tbody>
                             {% for p in out_of_stock %}
                                 <tr>
-                                    <td class="cell-product-name">{{ p.name }}</td>
+                                    <td>
+                                        <div class="cell-product-name">{{ p.name }}</div>
+                                    </td>
                                     <td>
                                         <span class="cell-sku">{{ p.sku }}</span>
                                     </td>
                                     <td class="cell-muted">{{ p.category }}</td>
                                     <td style="text-align: right;">
-                                        <a href="/stock" class="btn btn-secondary btn-sm" title="Restock item">
+                                        <a href="/stock" class="btn btn-secondary btn-sm" title="Receive stock for {{ p.name }}">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <line x1="12" y1="5" x2="12" y2="19"></line>
                                                 <polyline points="19 12 12 19 5 12"></polyline>
@@ -153,7 +175,7 @@
                         </svg>
                     </div>
                     <div class="empty-state-title">No zero-stock depletions</div>
-                    <p class="empty-state-desc">All catalog items have at least 1 unit available in stock.</p>
+                    <p class="empty-state-desc">All products in the active catalog have at least 1 unit in stock.</p>
                 </div>
             {% endif %}
         </div>
@@ -165,8 +187,14 @@
     <div class="card-header">
         <div class="card-title-group">
             <h2 class="card-title">Low Stock Reorder Exceptions</h2>
+            <span class="card-subtitle">Products operating at or below designated threshold minimums</span>
         </div>
-        <span class="card-subtitle">Products at or below reorder threshold</span>
+        {% if low_stock %}
+            <span class="badge badge-warning">
+                <span class="badge-dot"></span>
+                <span>{{ low_stock|length }} Attention Required</span>
+            </span>
+        {% endif %}
     </div>
     <div class="card-body no-padding">
         {% if low_stock %}
@@ -174,13 +202,13 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>SKU</th>
+                            <th style="width: 130px;">SKU</th>
                             <th>Product Name</th>
-                            <th>Category</th>
-                            <th>Current Stock</th>
-                            <th>Reorder Threshold</th>
-                            <th>Condition</th>
-                            <th style="text-align: right;">Action</th>
+                            <th style="width: 140px;">Category</th>
+                            <th style="width: 130px; text-align: right;">Current Stock</th>
+                            <th style="width: 130px; text-align: right;">Reorder Level</th>
+                            <th style="width: 140px; text-align: center;">Status</th>
+                            <th style="width: 130px; text-align: right;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -189,11 +217,17 @@
                                 <td>
                                     <span class="cell-sku">{{ p.sku }}</span>
                                 </td>
-                                <td class="cell-product-name">{{ p.name }}</td>
-                                <td class="cell-muted">{{ p.category }}</td>
-                                <td style="font-weight: 700; color: var(--warning);">{{ p.quantity }} units</td>
-                                <td class="cell-muted">{{ p.reorder_level }} units</td>
                                 <td>
+                                    <div class="cell-product-name">{{ p.name }}</div>
+                                </td>
+                                <td class="cell-muted">{{ p.category }}</td>
+                                <td style="text-align: right; font-weight: 700; color: {% if p.quantity == 0 %}var(--danger){% else %}var(--warning){% endif %}; font-variant-numeric: tabular-nums;">
+                                    {{ p.quantity }} units
+                                </td>
+                                <td style="text-align: right; font-variant-numeric: tabular-nums;" class="cell-muted">
+                                    {{ p.reorder_level }} units
+                                </td>
+                                <td style="text-align: center;">
                                     {% if p.quantity == 0 %}
                                         <span class="badge badge-danger">
                                             <span class="badge-dot"></span>
@@ -202,17 +236,17 @@
                                     {% else %}
                                         <span class="badge badge-warning">
                                             <span class="badge-dot"></span>
-                                            <span>Critical Low</span>
+                                            <span>Low Stock</span>
                                         </span>
                                     {% endif %}
                                 </td>
                                 <td style="text-align: right;">
-                                    <a href="/stock" class="btn btn-secondary btn-sm">
+                                    <a href="/stock" class="btn btn-secondary btn-sm" title="Initiate stock receipt">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <line x1="12" y1="5" x2="12" y2="19"></line>
                                             <polyline points="19 12 12 19 5 12"></polyline>
                                         </svg>
-                                        <span>Receive Stock</span>
+                                        <span>Restock</span>
                                     </a>
                                 </td>
                             </tr>
@@ -229,7 +263,7 @@
                     </svg>
                 </div>
                 <div class="empty-state-title">No reorder thresholds triggered</div>
-                <p class="empty-state-desc">All products are stocked above their designated reorder minimums.</p>
+                <p class="empty-state-desc">All products are stocked above their designated reorder safety levels.</p>
             </div>
         {% endif %}
     </div>
