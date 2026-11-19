@@ -161,7 +161,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const sku = selectedOpt.dataset.sku || 'SKU-N/A';
             const currentQty = parseInt(selectedOpt.dataset.quantity || '0', 10);
             const reorderLvl = parseInt(selectedOpt.dataset.reorder || '10', 10);
-            const moveQty = parseInt(qtyInput && qtyInput.value ? qtyInput.value : '0', 10);
+            const rawMoveQty = qtyInput && qtyInput.value ? qtyInput.value.trim() : '';
+            const moveQty = /^\d+$/.test(rawMoveQty) ? Number(rawMoveQty) : 0;
 
             if (nameEl) nameEl.textContent = productName;
             if (skuEl) skuEl.textContent = sku;

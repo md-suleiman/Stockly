@@ -51,7 +51,18 @@ def create_app(service_instance=None):
 # ---------------------------------------------------------------------------
 def inject_global_context():
     """Inject only values shared by every page."""
-    return {'cache_bust': '2.3.0'}
+    endpoint = request.endpoint or ''
+    breadcrumbs = {
+        'stockly.dashboard': [('Stockly', '/'), ('Dashboard', None)],
+        'stockly.products': [('Stockly', '/'), ('Inventory', None), ('Products', None)],
+        'stockly.add_product': [('Stockly', '/'), ('Inventory', None), ('Products', '/products'), ('Add Product', None)],
+        'stockly.edit_product': [('Stockly', '/'), ('Inventory', None), ('Products', '/products'), ('Edit Product', None)],
+        'stockly.stock_management': [('Stockly', '/'), ('Inventory', None), ('Stock Management', None)],
+        'stockly.transactions': [('Stockly', '/'), ('Activity', None), ('Transactions', None)],
+        'stockly.reports': [('Stockly', '/'), ('Reports', None)],
+        'stockly.settings': [('Stockly', '/'), ('Settings', None)],
+    }
+    return {'cache_bust': '2.4.0', 'breadcrumbs': breadcrumbs.get(endpoint, [('Stockly', '/')])}
 
 
 # ============================================================================
@@ -69,15 +80,13 @@ def dashboard():
     recent_txns = get_service().get_recent_transactions(limit=6)
     health_stats = get_service().get_inventory_health_stats()
     movement_stats = get_service().get_daily_movement_stats(days=7)
-    has_demo_activity = get_service().has_demo_activity()
 
     return render_template('dashboard.html',
                            stats=stats,
                            low_stock_products=low_stock,
                            recent_transactions=recent_txns,
                            health_stats=health_stats,
-                           movement_stats=movement_stats,
-                           has_demo_activity=has_demo_activity)
+                           movement_stats=movement_stats)
 
 
 # ============================================================================
@@ -159,7 +168,7 @@ def edit_product(product_id):
         if not success:
             return render_template('product_form.html',
                                    mode='edit',
-                                   product=data,
+                                   product={**data, 'quantity': product.quantity},
                                    product_id=product_id,
                                    categories=Product.CATEGORIES,
                                    errors=errors)
@@ -196,9 +205,13 @@ def stock_management():
     mode = request.args.get('mode', 'in')
     if mode not in ('in', 'out'):
         mode = 'in'
+    selected_product_id = request.args.get('product_id', '', type=str)
+    if not selected_product_id.isdigit() or not get_service().get_product(int(selected_product_id)):
+        selected_product_id = ''
     return render_template('stock_management.html',
                            products=active_products,
                            mode=mode,
+                           selected_product_id=selected_product_id,
                            success_message=None,
                            error_message=None)
 

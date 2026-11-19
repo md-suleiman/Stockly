@@ -493,6 +493,28 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'Settings', response.data)
 
+    def test_route_breadcrumbs_are_contextual(self):
+        response = self.client.get('/products')
+        self.assertIn(b'Stockly', response.data)
+        self.assertIn(b'Inventory', response.data)
+        self.assertIn(b'Products', response.data)
+        self.assertNotIn(b'Warehouse Console', response.data)
+
+    def test_restock_query_preselects_product_in_stock_in_mode(self):
+        product_id, errors = self.route_service.add_product(
+            self._route_product_data(sku='RESTOCK-1')
+        )
+        self.assertEqual(errors, [])
+        response = self.client.get(f'/stock?mode=in&product_id={product_id}')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(f'value="{product_id}" selected'.encode(), response.data)
+
+    def test_non_finite_price_is_rejected(self):
+        _, errors = self.route_service.add_product(
+            self._route_product_data(sku='NAN-PRICE', price='NaN')
+        )
+        self.assertTrue(any('finite' in error for error in errors))
+
     def test_csv_export_routes(self):
         res_prod = self.client.get('/reports/export/products')
         self.assertEqual(res_prod.status_code, 200)
@@ -579,13 +601,13 @@ class TestHistoricalSeed(unittest.TestCase):
         try:
             first = seed_database(path)
             second = seed_database(path)
-            self.assertEqual(first['products_added'], 6)
-            self.assertEqual(first['transactions_added'], 20)
+            self.assertEqual(first['products_added'], 9)
+            self.assertEqual(first['transactions_added'], 34)
             self.assertEqual(second['transactions_added'], 0)
             conn = sqlite3.connect(path)
             self.assertEqual(conn.execute(
                 "SELECT COUNT(DISTINCT substr(created_at, 1, 10)) "
-                "FROM stock_transactions WHERE reason LIKE '[DEMO]%' "
+                "FROM stock_transactions WHERE reason NOT LIKE '[DEMO]%' "
                 "AND transaction_type IN ('STOCK_IN', 'STOCK_OUT')"
             ).fetchone()[0], 7)
             self.assertEqual(conn.execute(
@@ -616,14 +638,17 @@ class TestHistoricalSeed(unittest.TestCase):
             conn.commit()
             conn.close()
             result = seed_database(path)
-            self.assertEqual(result['products_added'], 6)
+            self.assertEqual(result['products_added'], 9)
             conn = sqlite3.connect(path)
             self.assertEqual(conn.execute(
                 "SELECT name FROM products WHERE sku = 'ELE-WMOUSE'"
             ).fetchone()[0], 'Legacy Mouse')
             self.assertEqual(conn.execute(
-                "SELECT COUNT(*) FROM products WHERE sku LIKE 'DEMO-%'"
-            ).fetchone()[0], 6)
+                "SELECT COUNT(*) FROM products WHERE sku IN "
+                "('ELE-MOU-014', 'ELE-CAB-021', 'ELE-KEY-009', 'STA-NOT-008', "
+                "'HOM-WAT-006', 'CLO-BAG-011', 'GRO-RIC-003', 'ELE-SPK-017', "
+                "'STA-PAP-012')"
+            ).fetchone()[0], 9)
             conn.close()
         finally:
             os.unlink(path)
@@ -638,7 +663,7 @@ class TestHistoricalSeed(unittest.TestCase):
                 """SELECT substr(created_at, 1, 10), transaction_type,
                           SUM(quantity)
                    FROM stock_transactions
-                   WHERE reason LIKE '[DEMO]%'
+                   WHERE reason NOT LIKE '[DEMO]%'
                      AND transaction_type IN ('STOCK_IN', 'STOCK_OUT')
                    GROUP BY 1, 2"""
             ).fetchall()

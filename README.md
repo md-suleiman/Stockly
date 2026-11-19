@@ -34,7 +34,7 @@ Stockly directly demonstrates core software engineering and programming paradigm
 - **📋 Complete Product Catalog Management:**
   - Full CRUD lifecycle: Create, Read, Update, and soft-delete (Archive) catalog items.
   - **Non-Destructive Archiving:** Soft-deletes products to preserve historical transactions and audit integrity.
-  - **Live Product Form Preview:** Interactive real-time card preview on the Add/Edit form displaying product title, SKU, price, stock status, and reorder levels as you type.
+  - **Live Product Form Preview:** Interactive real-time card preview on the Add/Edit form displaying product title, Product Code (SKU), price, stock status, and reorder levels as you type.
   - **Search & Filter Bar:** Single-row unified toolbar with debounced search (500ms), category selector, stock status filter, and multi-criteria sorting (Newest, Oldest, Name, Price, Quantity).
   - Server-side & client-side validation enforcing non-negative prices, integer quantities, and unique SKU constraints.
 
@@ -69,7 +69,7 @@ Stockly directly demonstrates core software engineering and programming paradigm
 | **Templates** | Jinja2 | Reusable master layout (`base.html`), modular page templates, custom formatting filters |
 | **Backend** | Python 3 (Flask) | Lightweight WSGI web framework, RESTful routing, modular service architecture |
 | **Database** | SQLite3 | Embedded ACID-compliant database with foreign key enforcement and parameterized SQL queries |
-| **Testing** | `unittest` | 39 automated unit and HTTP integration test cases |
+| **Testing** | `unittest` | 42 automated unit and HTTP integration test cases |
 
 ---
 
@@ -107,7 +107,7 @@ Stockly/
 │       └── app.js              # Event-driven UI listeners (validation, debouncing, tab console)
 │
 ├── tests/
-│   └── test_inventory.py       # 39 automated unit and HTTP integration test cases
+│   └── test_inventory.py       # 42 automated unit and HTTP integration test cases
 │
 └── docs/
     ├── architecture.md         # Multi-tiered architecture and paradigm mapping
@@ -151,15 +151,16 @@ Populate the database with realistic retail products across all categories and v
 python seed.py
 ```
 
-The seed command creates six clearly marked demonstration products with `DEMO-*`
-SKUs and a deterministic
-seven-calendar-day history of Stock In and Stock Out activity relative to the
-local machine date (today through six days ago). Opening balances are kept in
-the ledger but are not counted as Stock In on the dashboard chart. Timestamps
-use local SQLite format `YYYY-MM-DD HH:MM:SS`. A versioned metadata marker
-makes repeated runs idempotent. Existing legacy products and unmarked ledgers
-are preserved; the script never rewrites records that may belong to a real
-operator.
+The seed command creates nine natural retail products, including healthy,
+low-stock, and out-of-stock inventory, plus a deterministic seven-calendar-day
+history relative to the Asia/Kolkata date. Opening balances are kept in the
+ledger but are not counted as Stock In on the dashboard chart. Timestamps use
+canonical SQLite format `YYYY-MM-DD HH:MM:SS`. A hidden seed registry records
+the dataset version and exact generated product/transaction IDs, making
+repeated runs safe and allowing controlled rolling refreshes. Existing legacy
+products and unmarked ledgers are preserved. A Product Code (SKU) means
+“Stock Keeping Unit”: the unique internal code used to identify and track a
+product.
 
 ### 5. Launch the Application
 ```bash
@@ -178,7 +179,7 @@ Run the full test suite using Python's built-in `unittest` runner:
 python -m unittest tests/test_inventory.py -v
 ```
 
-All 39 automated tests execute against isolated temporary SQLite databases, verifying:
+All 42 automated tests execute against isolated temporary SQLite databases, verifying:
 - Product creation, duplicate SKU rejection, price validation, and editing
 - Soft-deletion (archiving) and preservation of historical records
 - Atomic Stock In and Stock Out movements

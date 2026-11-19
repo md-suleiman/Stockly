@@ -60,14 +60,6 @@
                         <li class="nav-item {% if request.path.startswith('/reports') %}active{% endif %}"><a href="/reports" class="nav-link" {% if request.path.startswith('/reports') %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg><span>Reports</span></a></li>
                         </ul>
                     </div>
-                    <div class="quick-actions">
-                        <div class="nav-section-title">Quick Actions</div>
-                        <ul class="sidebar-nav">
-                            <li class="nav-item"><a href="/products/add" class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg><span>Add Product</span></a></li>
-                            <li class="nav-item"><a href="/stock?mode=in" class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m0 0l-5 5m5-5l5 5"></path></svg><span>Record Stock In</span></a></li>
-                            <li class="nav-item"><a href="/stock?mode=out" class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m0 0l-5-5m5 5l5-5"></path></svg><span>Record Stock Out</span></a></li>
-                        </ul>
-                    </div>
                 </nav>
             </div>
             <div class="sidebar-settings">
@@ -86,11 +78,11 @@
                         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                         <polyline points="9 22 9 12 15 12 15 22"></polyline>
                     </svg>
-                    <span>Warehouse Console</span>
-                    <span style="color: var(--border-color);">&bull;</span>
-                    <span class="utility-breadcrumb-bold">Main Inventory</span>
+                    {% for label, href in breadcrumbs %}
+                        {% if not loop.first %}<span class="breadcrumb-separator">/</span>{% endif %}
+                        {% if href %}<a href="{{ href }}">{{ label }}</a>{% else %}<span class="utility-breadcrumb-bold">{{ label }}</span>{% endif %}
+                    {% endfor %}
                 </div>
-                <div class="utility-actions"><span class="cell-muted" style="font-size: 0.75rem;">INR Standard</span></div>
             </header>
 
             <!-- Centered Main Content -->

@@ -85,7 +85,7 @@
                         <select id="stock-in-select" name="product_id" class="form-control stock-product-select" required>
                             <option value="">Choose a product from catalog...</option>
                             {% for p in products %}
-                                <option value="{{ p.product_id }}" data-name="{{ p.name }}" data-sku="{{ p.sku }}" data-quantity="{{ p.quantity }}" data-reorder="{{ p.reorder_level }}">{{ p.name }} (Current: {{ p.quantity }} units)</option>
+                                <option value="{{ p.product_id }}" {% if selected_product_id|int == p.product_id %}selected{% endif %} data-name="{{ p.name }}" data-sku="{{ p.sku }}" data-quantity="{{ p.quantity }}" data-reorder="{{ p.reorder_level }}">{{ p.name }} (Current: {{ p.quantity }} units)</option>
                             {% endfor %}
                         </select>
                         <span class="form-text">Choose the active item being received into warehouse inventory.</span>
@@ -123,7 +123,7 @@
                         <select id="stock-out-select" name="product_id" class="form-control stock-product-select" required>
                             <option value="">Choose a product from catalog...</option>
                             {% for p in products %}
-                                <option value="{{ p.product_id }}" data-name="{{ p.name }}" data-sku="{{ p.sku }}" data-quantity="{{ p.quantity }}" data-reorder="{{ p.reorder_level }}">{{ p.name }} (Current: {{ p.quantity }} units)</option>
+                                <option value="{{ p.product_id }}" {% if selected_product_id|int == p.product_id %}selected{% endif %} data-name="{{ p.name }}" data-sku="{{ p.sku }}" data-quantity="{{ p.quantity }}" data-reorder="{{ p.reorder_level }}">{{ p.name }} (Current: {{ p.quantity }} units)</option>
                             {% endfor %}
                         </select>
                         <span class="form-text">Choose the active item being deducted or fulfilled.</span>

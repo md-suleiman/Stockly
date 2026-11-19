@@ -8,6 +8,8 @@ calculation, formatting, and checking. Each function takes explicit inputs
 and returns explicit outputs — no hidden state or side effects.
 """
 
+import math
+
 from models import Product
 
 
@@ -54,7 +56,9 @@ def validate_product_data(data, existing_skus=None, current_product_id=None):
     # --- Price ---
     try:
         price = float(data.get('price', ''))
-        if price < 0:
+        if not math.isfinite(price):
+            errors.append('Unit price must be a finite number.')
+        elif price < 0:
             errors.append('Unit price cannot be negative.')
     except (ValueError, TypeError):
         errors.append('Unit price must be a valid number.')
@@ -217,4 +221,3 @@ def generate_sku_suggestion(name, category):
     if not name_part:
         name_part = 'PROD'
     return f'{cat_prefix}-{name_part}'
-

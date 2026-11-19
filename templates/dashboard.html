@@ -9,7 +9,6 @@
         <h1 class="page-title">Resource Management</h1>
         <p class="page-subtitle">Your inventory at a glance.</p>
         {% if has_demo_activity %}
-            <span class="sample-activity-note">Sample activity included</span>
         {% endif %}
     </div>
     <div class="page-actions">
@@ -261,18 +260,11 @@
                             </div>
                             <div class="alert-item-meta">
                                 <span class="alert-item-qty">{{ p.quantity }} / {{ p.reorder_level }}</span>
-                                {% if p.quantity == 0 %}
-                                    <span class="badge badge-danger">
-                                        <span class="badge-dot"></span>
-                                        <span>Out of Stock</span>
-                                    </span>
-                                {% else %}
-                                    <span class="badge badge-warning">
-                                        <span class="badge-dot"></span>
-                                        <span>Low Stock</span>
-                                    </span>
-                                {% endif %}
-                                <a href="/stock" class="btn btn-secondary btn-sm" title="Quick Restock" style="padding: 3px 8px;">
+                                <span class="badge badge-warning">
+                                    <span class="badge-dot"></span>
+                                    <span>Low Stock</span>
+                                </span>
+                                <a href="/stock?mode=in&amp;product_id={{ p.product_id }}" class="btn btn-secondary btn-sm" title="Restock {{ p.name }}" style="padding: 3px 8px;">
                                     <span>Restock</span>
                                 </a>
                             </div>
