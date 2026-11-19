@@ -362,6 +362,8 @@ class TestStocklyService(unittest.TestCase):
     # ------------------------------------------------------------------------
     def test_procedural_utilities(self):
         self.assertEqual(format_currency(1234.5), '₹1,234.50')
+        self.assertEqual(format_currency(123456.78), '₹1,23,456.78')
+        self.assertEqual(format_currency(-123456.78), '-₹1,23,456.78')
         self.assertEqual(format_currency(0), '₹0.00')
 
         formatted_date = format_datetime('2026-11-19 14:30:00')
@@ -499,6 +501,8 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
         self.assertIn(b'Inventory', response.data)
         self.assertIn(b'Products', response.data)
         self.assertNotIn(b'Warehouse Console', response.data)
+        self.assertNotIn(b'Quick Actions', response.data)
+        self.assertNotIn(b'quick-actions', response.data)
 
     def test_restock_query_preselects_product_in_stock_in_mode(self):
         product_id, errors = self.route_service.add_product(
@@ -514,6 +518,24 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
             self._route_product_data(sku='NAN-PRICE', price='NaN')
         )
         self.assertTrue(any('finite' in error for error in errors))
+
+    def test_restore_product_route(self):
+        product_id, errors = self.route_service.add_product(
+            self._route_product_data(sku='RESTORE-1')
+        )
+        self.assertEqual(errors, [])
+        self.route_service.archive_product(product_id)
+        response = self.client.post(f'/products/restore/{product_id}')
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(self.route_service.get_product(product_id).is_active)
+
+    def test_csv_formula_text_is_prefixed(self):
+        self.route_service.add_product(self._route_product_data(
+            name='=2+2', sku='@FORMULA-1'
+        ))
+        csv_text = self.route_service.export_products_csv()
+        self.assertIn("'=2+2", csv_text)
+        self.assertIn("'@FORMULA-1", csv_text)
 
     def test_csv_export_routes(self):
         res_prod = self.client.get('/reports/export/products')

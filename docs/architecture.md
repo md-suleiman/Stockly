@@ -64,7 +64,9 @@ To guarantee data consistency and audit integrity, all stock updates follow an a
    - Executes `UPDATE products SET quantity = ?, updated_at = ? WHERE product_id = ?`.
    - Executes `INSERT INTO stock_transactions (...) VALUES (...)`.
    - Commits both statements simultaneously via `conn.commit()`. If an exception occurs, a rollback is executed, ensuring zero partial updates.
-6. **Response & View Rendering:** The controller receives the new stock count, passes a success notification to the template, and renders the updated stock level.
+6. **Response & View Rendering:** The controller flashes the result and redirects
+   to Stock Management. This Post/Redirect/Get flow prevents a browser refresh
+   from repeating the movement.
 
 ---
 
@@ -108,7 +110,7 @@ Implemented in `utils.py`, procedural routines are stateless, deterministic func
 - **Data Validation:** `validate_product_data()` verifies product names, categories, price thresholds, and duplicate SKU detection.
 - **Stock Movement Checks:** `validate_stock_movement()` validates requested stock movements against current inventory constraints.
 - **Calculations & Aggregations:** `calculate_inventory_value()` and `calculate_total_stock_units()` calculate metrics across collections.
-- **Formatting:** `format_currency()` converts numbers into standard Indian Rupee notation (`₹1,234.50`).
+- **Formatting:** `format_currency()` converts numbers into Indian digit grouping (`₹1,23,456.78`).
 
 ```python
 # Procedural: utils.py - Pure functions with explicit parameters
@@ -144,4 +146,3 @@ Stockly uses event-driven programming both on the client (browser events) and se
 | **Location in Code** | `database.py`, `models.py`, `inventory_service.py` | `utils.py` | `static/js/app.js`, `app.py` |
 | **Role in Stockly** | Entity models, database lifecycle, service orchestration | Mathematical logic, validation rules, string formatting | User interaction, search debounce, HTTP request routing |
 | **Key Advantage** | High cohesion, maintainability, separation of concerns | Pure, easily testable logic without side effects | Responsive, interactive, non-blocking user experience |
-

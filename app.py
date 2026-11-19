@@ -11,16 +11,17 @@ Each Flask route is an event handler triggered by a browser request.
 import os
 import logging
 import secrets
-from datetime import datetime
 from flask import (Flask, Blueprint, current_app, render_template, request, redirect,
                    url_for, flash, Response)
 from inventory_service import InventoryService
 from models import Product
 from utils import format_currency, format_datetime, format_stock_status
+from clock import timestamp
 
 logger = logging.getLogger(__name__)
 
 routes = Blueprint('stockly', __name__)
+APP_VERSION = '2.5.0'
 
 
 def get_service():
@@ -62,7 +63,7 @@ def inject_global_context():
         'stockly.reports': [('Stockly', '/'), ('Reports', None)],
         'stockly.settings': [('Stockly', '/'), ('Settings', None)],
     }
-    return {'cache_bust': '2.4.0', 'breadcrumbs': breadcrumbs.get(endpoint, [('Stockly', '/')])}
+    return {'cache_bust': APP_VERSION, 'breadcrumbs': breadcrumbs.get(endpoint, [('Stockly', '/')])}
 
 
 # ============================================================================
@@ -192,6 +193,17 @@ def archive_product(product_id):
     else:
         flash(error or 'Failed to archive product.', 'error')
     return redirect(url_for('stockly.products'))
+
+
+@routes.route('/products/restore/<int:product_id>', methods=['POST'])
+def restore_product(product_id):
+    """Restore an archived product without changing its inventory history."""
+    success, error = get_service().restore_product(product_id)
+    if success:
+        flash('Product restored successfully.', 'success')
+    else:
+        flash(error or 'Failed to restore product.', 'error')
+    return redirect(url_for('stockly.products', archived='1'))
 
 
 # ============================================================================
@@ -361,12 +373,12 @@ def settings():
     app_info = {
         'name': 'Stockly',
         'tagline': 'Smarter Stock. Simpler Management.',
-        'edition': 'Enterprise Edition',
+        'edition': 'Local-first workspace',
         'currency': 'INR (₹)',
         'currency_symbol': '₹',
         'categories': Product.CATEGORIES,
         'description': 'A local-first inventory management workspace for tracking products, stock movements, and reports.',
-        'version': '2.2.0',
+        'version': APP_VERSION,
     }
     return render_template('settings.html', app_info=app_info)
 

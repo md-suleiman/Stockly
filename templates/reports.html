@@ -32,7 +32,7 @@
 <!-- Executive Summary Metric Bar -->
 <div class="summary-metric-bar">
     <div class="summary-metric-item">
-        <span class="summary-metric-label">Active SKUs</span>
+        <span class="summary-metric-label">Active Products</span>
         <span class="summary-metric-val">{{ summary.total_active_products }}</span>
     </div>
     <div class="summary-metric-item">
@@ -40,15 +40,15 @@
         <span class="summary-metric-val">{{ summary.total_units }}</span>
     </div>
     <div class="summary-metric-item">
-        <span class="summary-metric-label">Total Asset Valuation</span>
+        <span class="summary-metric-label">Total Inventory Value</span>
         <span class="summary-metric-val" style="color: var(--primary-blue);">{{ summary.total_value|currency }}</span>
     </div>
     <div class="summary-metric-item">
-        <span class="summary-metric-label">Low Stock Alerts</span>
+        <span class="summary-metric-label">Low Stock Products</span>
         <span class="summary-metric-val" style="color: var(--warning);">{{ summary.low_stock_count }}</span>
     </div>
     <div class="summary-metric-item">
-        <span class="summary-metric-label">Stock Depletions</span>
+        <span class="summary-metric-label">Out of Stock Products</span>
         <span class="summary-metric-val" style="color: var(--danger);">{{ summary.out_of_stock_count }}</span>
     </div>
 </div>
@@ -202,7 +202,7 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th style="width: 130px;">SKU</th>
+                            <th style="width: 130px;">Product Code</th>
                             <th>Product Name</th>
                             <th style="width: 140px;">Category</th>
                             <th style="width: 130px; text-align: right;">Current Stock</th>
@@ -221,27 +221,20 @@
                                     <div class="cell-product-name">{{ p.name }}</div>
                                 </td>
                                 <td class="cell-muted">{{ p.category }}</td>
-                                <td style="text-align: right; font-weight: 700; color: {% if p.quantity == 0 %}var(--danger){% else %}var(--warning){% endif %}; font-variant-numeric: tabular-nums;">
+                                <td style="text-align: right; font-weight: 700; color: var(--warning); font-variant-numeric: tabular-nums;">
                                     {{ p.quantity }} units
                                 </td>
                                 <td style="text-align: right; font-variant-numeric: tabular-nums;" class="cell-muted">
                                     {{ p.reorder_level }} units
                                 </td>
                                 <td style="text-align: center;">
-                                    {% if p.quantity == 0 %}
-                                        <span class="badge badge-danger">
-                                            <span class="badge-dot"></span>
-                                            <span>Out of Stock</span>
-                                        </span>
-                                    {% else %}
-                                        <span class="badge badge-warning">
-                                            <span class="badge-dot"></span>
-                                            <span>Low Stock</span>
-                                        </span>
-                                    {% endif %}
+                                    <span class="badge badge-warning">
+                                        <span class="badge-dot"></span>
+                                        <span>Low Stock</span>
+                                    </span>
                                 </td>
                                 <td style="text-align: right;">
-                                    <a href="/stock" class="btn btn-secondary btn-sm" title="Initiate stock receipt">
+                                    <a href="/stock?mode=in&amp;product_id={{ p.product_id }}" class="btn btn-secondary btn-sm" title="Initiate stock receipt">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <line x1="12" y1="5" x2="12" y2="19"></line>
                                             <polyline points="19 12 12 19 5 12"></polyline>
@@ -262,8 +255,8 @@
                         <polyline points="22 4 12 14.01 9 11.01"></polyline>
                     </svg>
                 </div>
-                <div class="empty-state-title">No reorder thresholds triggered</div>
-                <p class="empty-state-desc">All products are stocked above their designated reorder safety levels.</p>
+                <div class="empty-state-title">No products are currently in the low-stock reorder range.</div>
+                <p class="empty-state-desc">Out-of-stock products are listed separately above.</p>
             </div>
         {% endif %}
     </div>

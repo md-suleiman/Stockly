@@ -8,7 +8,7 @@ encapsulate data attributes and business-logic methods. Factory class-methods
 convert raw database rows into rich objects.
 """
 
-from datetime import datetime
+from clock import timestamp
 
 
 class Product:
@@ -36,8 +36,8 @@ class Product:
         self.quantity = int(quantity)
         self.reorder_level = int(reorder_level)
         self.is_active = int(is_active)
-        self.created_at = created_at or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        self.updated_at = updated_at or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.created_at = created_at or timestamp()
+        self.updated_at = updated_at or timestamp()
 
     # -- OOP: Class Method / Factory Pattern ---------------------------------
     @classmethod
@@ -120,7 +120,7 @@ class StockTransaction:
         self.stock_before = int(stock_before)
         self.stock_after = int(stock_after)
         self.reason = reason or ''
-        self.created_at = created_at or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.created_at = created_at or timestamp()
         # Joined fields (populated when fetching with product info)
         self.product_name = product_name or ''
         self.product_sku = product_sku or ''
@@ -161,4 +161,3 @@ class StockTransaction:
     def __repr__(self):
         return (f"StockTransaction(id={self.transaction_id}, "
                 f"type='{self.transaction_type}', qty={self.quantity})")
-

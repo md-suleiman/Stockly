@@ -69,7 +69,7 @@ Stockly directly demonstrates core software engineering and programming paradigm
 | **Templates** | Jinja2 | Reusable master layout (`base.html`), modular page templates, custom formatting filters |
 | **Backend** | Python 3 (Flask) | Lightweight WSGI web framework, RESTful routing, modular service architecture |
 | **Database** | SQLite3 | Embedded ACID-compliant database with foreign key enforcement and parameterized SQL queries |
-| **Testing** | `unittest` | 42 automated unit and HTTP integration test cases |
+| **Testing** | `unittest` | 44 automated unit and HTTP integration test cases |
 
 ---
 
@@ -82,6 +82,7 @@ Stockly/
 ├── database.py                 # SQLite connection manager and schema initialization (OOP)
 ├── models.py                   # Domain models: Product and StockTransaction (OOP)
 ├── inventory_service.py        # Core business logic service with atomic transactions (OOP)
+├── clock.py                    # Canonical India-local clock and SQLite timestamps
 ├── utils.py                    # Pure validation, calculation, and formatting utilities (Procedural)
 ├── seed.py                     # Idempotent database demonstration seeding script
 ├── requirements.txt            # Minimal Python dependencies (Flask)
@@ -107,12 +108,17 @@ Stockly/
 │       └── app.js              # Event-driven UI listeners (validation, debouncing, tab console)
 │
 ├── tests/
-│   └── test_inventory.py       # 42 automated unit and HTTP integration test cases
+│   └── test_inventory.py       # 44 automated unit and HTTP integration test cases
 │
 └── docs/
     ├── architecture.md         # Multi-tiered architecture and paradigm mapping
-    └── flowchart.md            # Stock In/Out and Product lifecycle Mermaid flowcharts
+    ├── flowchart.md             # Stock In/Out and Product lifecycle Mermaid flowcharts
+    ├── assignment-report.md     # Structured programming-paradigms assignment report
+    └── demo-presentation-outline.md
 ```
+
+Stockly is a local-first academic application and is not intended for
+unsecured public deployment.
 
 ---
 
@@ -176,10 +182,11 @@ Open your browser and navigate to:
 
 Run the full test suite using Python's built-in `unittest` runner:
 ```bash
+python -m unittest discover -v
 python -m unittest tests/test_inventory.py -v
 ```
 
-All 42 automated tests execute against isolated temporary SQLite databases, verifying:
+All 44 automated tests execute against isolated temporary SQLite databases, verifying:
 - Product creation, duplicate SKU rejection, price validation, and editing
 - Soft-deletion (archiving) and preservation of historical records
 - Atomic Stock In and Stock Out movements

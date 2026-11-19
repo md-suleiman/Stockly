@@ -9,11 +9,11 @@ stock operations, and report generation. This follows the Service Pattern —
 a common OOP architectural approach.
 """
 
-from datetime import datetime
 import logging
 from database import Database
 from models import Product, StockTransaction
 from utils import validate_product_data, validate_stock_movement
+from clock import timestamp, today
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class InventoryService:
         if errors:
             return None, errors
 
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now = timestamp()
         name = data['name'].strip()
         sku = data['sku'].strip()
         category = data['category'].strip()
@@ -132,7 +132,7 @@ class InventoryService:
         if errors:
             return False, errors
 
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now = timestamp()
         conn = self.db.get_connection()
         try:
             conn.execute(
@@ -162,7 +162,7 @@ class InventoryService:
         if product is None:
             return False, 'Product not found.'
 
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now = timestamp()
         conn = self.db.get_connection()
         try:
             conn.execute(
@@ -176,6 +176,28 @@ class InventoryService:
             conn.rollback()
             logger.exception('Failed to archive product %s', product_id)
             return False, 'Unable to archive the product. Please try again.'
+        finally:
+            conn.close()
+
+    def restore_product(self, product_id):
+        """Restore an archived product without changing quantity or history."""
+        product = self.get_product(product_id)
+        if product is None:
+            return False, 'Product not found.'
+        if product.is_active:
+            return False, 'Product is already active.'
+        conn = self.db.get_connection()
+        try:
+            conn.execute(
+                'UPDATE products SET is_active = 1, updated_at = ? WHERE product_id = ?',
+                (timestamp(), product_id),
+            )
+            conn.commit()
+            return True, None
+        except Exception:
+            conn.rollback()
+            logger.exception('Failed to restore product %s', product_id)
+            return False, 'Unable to restore the product. Please try again.'
         finally:
             conn.close()
 
@@ -199,7 +221,7 @@ class InventoryService:
             if errors:
                 conn.rollback()
                 return False, errors[0], None
-            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            now = timestamp()
             stock_before = product.quantity
             stock_after = stock_before + quantity
             conn.execute(
@@ -240,7 +262,7 @@ class InventoryService:
             if errors:
                 conn.rollback()
                 return False, errors[0], None
-            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            now = timestamp()
             stock_before = product.quantity
             stock_after = stock_before - quantity
             conn.execute(
@@ -327,16 +349,6 @@ class InventoryService:
     # ========================================================================
     # TRANSACTIONS
     # ========================================================================
-
-    def has_demo_activity(self):
-        """Return whether the database contains marked demonstration activity."""
-        conn = self.db.get_connection()
-        try:
-            return conn.execute(
-                "SELECT 1 FROM stock_transactions WHERE reason LIKE '[DEMO]%' LIMIT 1"
-            ).fetchone() is not None
-        finally:
-            conn.close()
 
     def get_transactions(self, product_id=None, transaction_type=None,
                          date_from=None, date_to=None, search='',
@@ -519,9 +531,9 @@ class InventoryService:
         """
         conn = self.db.get_connection()
         try:
-            from datetime import date, timedelta
-            today = date.today()
-            dates = [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
+            from datetime import timedelta
+            current_day = today()
+            dates = [current_day - timedelta(days=i) for i in range(days - 1, -1, -1)]
             date_strings = [d.strftime('%Y-%m-%d') for d in dates]
 
             rows = conn.execute(
@@ -584,8 +596,11 @@ class InventoryService:
         import io
         output = io.StringIO()
         writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+        def safe_text(value):
+            text = str(value)
+            return "'" + text if text.lstrip().startswith(('=', '+', '-', '@')) else text
         writer.writerow([
-            'Product ID', 'SKU', 'Name', 'Category', 'Price', 'Quantity',
+            'Product ID', 'Product Code (SKU)', 'Name', 'Category', 'Price', 'Quantity',
             'Reorder Level', 'Status', 'Stock Status', 'Created', 'Updated'
         ])
         products = self.get_all_products(include_archived=True)
@@ -593,7 +608,7 @@ class InventoryService:
             status = 'Active' if p.is_active else 'Archived'
             stock_status = p.get_stock_status().replace('_', ' ').title()
             writer.writerow([
-                p.product_id, p.sku, p.name, p.category, p.price, p.quantity,
+                p.product_id, safe_text(p.sku), safe_text(p.name), safe_text(p.category), p.price, p.quantity,
                 p.reorder_level, status, stock_status, p.created_at, p.updated_at
             ])
         return output.getvalue()
@@ -604,6 +619,9 @@ class InventoryService:
         import io
         output = io.StringIO()
         writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+        def safe_text(value):
+            text = str(value)
+            return "'" + text if text.lstrip().startswith(('=', '+', '-', '@')) else text
         writer.writerow([
             'Transaction ID', 'Date', 'Product', 'SKU', 'Type', 'Quantity',
             'Stock Before', 'Stock After', 'Reason'
@@ -611,9 +629,9 @@ class InventoryService:
         transactions = self.get_transactions()
         for t in transactions:
             writer.writerow([
-                t.transaction_id, t.created_at, t.product_name, t.product_sku,
+                t.transaction_id, t.created_at, safe_text(t.product_name), safe_text(t.product_sku),
                 t.transaction_type, t.quantity, t.stock_before, t.stock_after,
-                t.reason
+                safe_text(t.reason)
             ])
         return output.getvalue()
 

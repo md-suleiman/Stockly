@@ -1,30 +1,19 @@
 """Seed a safe, natural-looking seven-day Stockly demonstration dataset."""
 
-from datetime import datetime, date, time, timedelta
-from zoneinfo import ZoneInfo
+from datetime import datetime, time, timedelta
 import os
-import shutil
 
 from database import Database
+from clock import IST, timestamp, today
 
 
 DATASET_KEY = 'stockly-demonstration'
 DEMO_VERSION = 'historical-demo-v3'
-LOCAL_ZONE = ZoneInfo('Asia/Kolkata')
+LOCAL_ZONE = IST
 STAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 OLD_DEMO_SKUS = {
     'DEMO-ELE-WMOUSE', 'DEMO-ELE-USBC1M', 'DEMO-STA-NB200',
     'DEMO-HOM-WTRBOTL', 'DEMO-CLO-BKPACK', 'DEMO-GRO-RICE5K',
-}
-OLD_V1_SKUS = {
-    'ELE-WMOUSE', 'ELE-USBC1M', 'ELE-LPSTND', 'STA-NB200',
-    'STA-BPPEN10', 'HOM-WTRBOTL', 'CLO-BKPACK', 'ELE-HDPHN',
-    'ELE-MCKBD', 'GRO-RICE5K', 'GRO-GTEA25', 'CLO-TSHRTM',
-}
-OLD_REASONS = {
-    'Opening stock', 'Supplier delivery', 'Customer order fulfilled',
-    'Restocking from warehouse', 'Walk-in customer purchase',
-    'Bulk purchase received',
 }
 
 PRODUCTS = [
@@ -75,8 +64,14 @@ def _stamp(day, hour):
 
 def _backup(path):
     if os.path.exists(path) and os.path.getsize(path):
-        destination = f'{path}.pre-demo-v3'
-        shutil.copy2(path, destination)
+        destination = f'{path}.backup-{datetime.now().strftime("%Y%m%d%H%M%S")}'
+        source = Database(path).get_connection()
+        target = Database(destination).get_connection()
+        try:
+            source.backup(target)
+        finally:
+            target.close()
+            source.close()
         return destination
     return None
 
@@ -111,14 +106,82 @@ def _old_seed_ids(conn):
             'SELECT reason FROM stock_transactions WHERE product_id = ?',
             (row['product_id'],),
         ).fetchall()
-        if all((t['reason'] or '').startswith('[DEMO]') or
-               (t['reason'] or '') in OLD_REASONS for t in txns):
+        if all((t['reason'] or '').startswith('[DEMO]') for t in txns):
             ids.append(row['product_id'])
         elif txns:
             raise RuntimeError(
                 f"Cannot migrate {row['sku']}: unmarked user transactions exist."
             )
     return ids
+
+
+def _validate_registered_ownership(conn):
+    """Prove the current registry still owns the expected untouched records."""
+    product_rows = conn.execute(
+        '''SELECT p.* FROM seed_registry_products r
+           LEFT JOIN products p ON p.product_id = r.product_id
+           WHERE r.dataset_key = ?''',
+        (DATASET_KEY,),
+    ).fetchall()
+    expected_by_sku = {item[1]: item for item in PRODUCTS}
+    if len(product_rows) != len(PRODUCTS) or any(row['product_id'] is None for row in product_rows):
+        raise RuntimeError('Seed registry is incomplete; refusing to refresh it.')
+    product_ids = [row['product_id'] for row in product_rows]
+    for row in product_rows:
+        expected = expected_by_sku.get(row['sku'])
+        if not expected or (
+            row['name'], row['category'], row['price'], row['reorder_level'],
+            row['is_active']
+        ) != (expected[0], expected[2], expected[3], expected[5], 1):
+            raise RuntimeError(
+                f"Seeded product {row['product_id']} was modified; refusing refresh."
+            )
+    transaction_ids = {
+        row['transaction_id'] for row in conn.execute(
+            'SELECT transaction_id FROM seed_registry_transactions WHERE dataset_key = ?',
+            (DATASET_KEY,),
+        )
+    }
+    registry_count = conn.execute(
+        'SELECT COUNT(*) FROM seed_registry_transactions WHERE dataset_key = ?',
+        (DATASET_KEY,),
+    ).fetchone()[0]
+    if registry_count != len(transaction_ids):
+        raise RuntimeError('Seed registry contains duplicate transaction ownership.')
+    placeholders = ','.join('?' for _ in product_ids)
+    rows = conn.execute(
+        f'SELECT transaction_id FROM stock_transactions WHERE product_id IN ({placeholders})',
+        product_ids,
+    ).fetchall()
+    actual_ids = {row['transaction_id'] for row in rows}
+    if actual_ids != transaction_ids:
+        raise RuntimeError(
+            'Seeded products contain missing or user-created transactions; refusing refresh.'
+        )
+    for product_id in product_ids:
+        ledger = conn.execute(
+            '''SELECT transaction_type, quantity, stock_before, stock_after
+               FROM stock_transactions
+               WHERE product_id = ?
+               ORDER BY datetime(replace(created_at, 'T', ' ')), transaction_id''',
+            (product_id,),
+        ).fetchall()
+        if not ledger or ledger[0]['transaction_type'] != 'OPENING':
+            raise RuntimeError('Seed ledger is incomplete; refusing refresh.')
+        balance = ledger[0]['stock_after']
+        if ledger[0]['stock_before'] != 0:
+            raise RuntimeError('Seed opening balance is invalid; refusing refresh.')
+        for row in ledger[1:]:
+            expected = balance + row['quantity'] if row['transaction_type'] == 'STOCK_IN' else balance - row['quantity']
+            if row['stock_before'] != balance or row['stock_after'] != expected or expected < 0:
+                raise RuntimeError('Seed ledger continuity failed; refusing refresh.')
+            balance = expected
+        current = conn.execute(
+            'SELECT quantity FROM products WHERE product_id = ?', (product_id,)
+        ).fetchone()['quantity']
+        if current != balance:
+            raise RuntimeError('Seed product balance does not match its ledger.')
+    return product_ids
 
 
 def _insert_product(conn, product, stamp):
@@ -187,7 +250,7 @@ def seed_database(db_path=None):
     db = Database(db_path)
     db.init_db()
     conn = db.get_connection()
-    today = datetime.now(LOCAL_ZONE).date()
+    current_day = today()
     try:
         _ensure_registry(conn)
         registered = conn.execute(
@@ -196,7 +259,8 @@ def seed_database(db_path=None):
         ).fetchall()
         refresh = False
         if registered:
-            expected = {(today - timedelta(days=i)).isoformat() for i in range(7)}
+            product_ids = _validate_registered_ownership(conn)
+            expected = {(current_day - timedelta(days=i)).isoformat() for i in range(7)}
             actual = {
                 row[0] for row in conn.execute(
                     '''SELECT DISTINCT substr(t.created_at, 1, 10)
@@ -210,7 +274,6 @@ def seed_database(db_path=None):
                 print(f'Database: {db.db_path}')
                 print('Operation: safe no-op; current dataset is valid.')
                 return {'products_added': 0, 'transactions_added': 0}
-            product_ids = [row['product_id'] for row in registered]
             placeholders = ','.join('?' for _ in product_ids)
             registered_txns = {
                 row['transaction_id'] for row in conn.execute(
@@ -256,8 +319,8 @@ def seed_database(db_path=None):
         else:
             operation = 'fresh seed'
 
-        product_ids, transaction_ids = _create_dataset(conn, today)
-        now = _stamp(today, 18)
+        product_ids, transaction_ids = _create_dataset(conn, current_day)
+        now = timestamp()
         conn.execute(
             'INSERT OR REPLACE INTO seed_registry(dataset_key, version, created_at) VALUES (?, ?, ?)',
             (DATASET_KEY, DEMO_VERSION, now),
@@ -279,7 +342,7 @@ def seed_database(db_path=None):
         print(f'Operation: {"rolling refresh" if refresh else operation}')
         print(f'Products added: {len(product_ids)}')
         print(f'Transactions created: {len(transaction_ids)}')
-        print(f'Date range: {(today - timedelta(days=6)).isoformat()} through {today.isoformat()}')
+        print(f'Date range: {(current_day - timedelta(days=6)).isoformat()} through {current_day.isoformat()}')
         return {'products_added': len(product_ids), 'transactions_added': len(transaction_ids)}
     except Exception:
         conn.rollback()

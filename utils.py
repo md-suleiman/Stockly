@@ -171,10 +171,17 @@ def format_currency(value):
         value = float(value)
     except (ValueError, TypeError):
         return '₹0.00'
-    # Indian-style comma grouping is complex; use simple thousands separator
-    if value < 0:
-        return f'-₹{abs(value):,.2f}'
-    return f'₹{value:,.2f}'
+    sign = '-' if value < 0 else ''
+    integer, fraction = f'{abs(value):.2f}'.split('.')
+    if len(integer) > 3:
+        tail = integer[-3:]
+        head = integer[:-3]
+        groups = []
+        while head:
+            groups.insert(0, head[-2:])
+            head = head[:-2]
+        integer = ','.join(groups + [tail])
+    return f'{sign}₹{integer}.{fraction}'
 
 
 def format_datetime(dt_string):

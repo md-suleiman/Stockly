@@ -8,8 +8,6 @@
     <div class="page-title-group">
         <h1 class="page-title">Resource Management</h1>
         <p class="page-subtitle">Your inventory at a glance.</p>
-        {% if has_demo_activity %}
-        {% endif %}
     </div>
     <div class="page-actions">
         <a href="/products/add" class="btn btn-primary">
@@ -83,7 +81,7 @@
             </div>
         </div>
         <div class="kpi-value">{{ stats.low_stock_count }}</div>
-        <div class="kpi-meta">At or below reorder level</div>
+        <div class="kpi-meta">Positive units at or below reorder level</div>
     </div>
 
     <!-- 4. Total Inventory Value -->
@@ -279,8 +277,8 @@
                             <polyline points="22 4 12 14.01 9 11.01"></polyline>
                         </svg>
                     </div>
-                    <div class="empty-state-title">Stock levels healthy</div>
-                    <p class="empty-state-desc">Every catalog product is currently stocked above its designated reorder minimum.</p>
+                    <div class="empty-state-title">No low-stock items currently need replenishment.</div>
+                    <p class="empty-state-desc">Zero-stock products, if any, are listed separately in Reports.</p>
                 </div>
             {% endif %}
         </div>

@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!sidebar) return;
         const isOpen = open !== undefined ? open : !sidebar.classList.contains('open');
         sidebar.classList.toggle('open', isOpen);
+        if (sidebarToggle) sidebarToggle.setAttribute('aria-expanded', String(isOpen));
         if (sidebarOverlay) {
             sidebarOverlay.classList.toggle('active', isOpen);
         }
@@ -56,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ====================================================================
     const alerts = document.querySelectorAll('.alert');
     alerts.forEach((alert) => {
+        if (alert.classList.contains('alert-danger') || alert.classList.contains('alert-error')) return;
         setTimeout(() => {
             alert.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
             alert.style.opacity = '0';
@@ -162,6 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentQty = parseInt(selectedOpt.dataset.quantity || '0', 10);
             const reorderLvl = parseInt(selectedOpt.dataset.reorder || '10', 10);
             const rawMoveQty = qtyInput && qtyInput.value ? qtyInput.value.trim() : '';
+            const validMoveQty = rawMoveQty === '' || /^\d+$/.test(rawMoveQty);
             const moveQty = /^\d+$/.test(rawMoveQty) ? Number(rawMoveQty) : 0;
 
             if (nameEl) nameEl.textContent = productName;
@@ -174,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const insufficient = !isStockIn && moveQty > currentQty;
             const projected = currentQty - moveQty;
             if (projectedEl) {
-                projectedEl.textContent = insufficient ? 'Insufficient stock' : `${isStockIn ? currentQty + moveQty : projected} units`;
+                projectedEl.textContent = !validMoveQty ? 'Enter a whole number' : (insufficient ? 'Insufficient stock' : `${isStockIn ? currentQty + moveQty : projected} units`);
                 projectedEl.style.color = insufficient ? 'var(--danger)' : (isStockIn ? 'var(--success)' : (projected <= reorderLvl ? 'var(--danger)' : 'var(--text-primary)'));
             }
 
@@ -200,9 +203,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 meterFill.style.backgroundColor = currentQty === 0 ? 'var(--danger)' : (currentQty <= reorderLvl ? 'var(--warning)' : 'var(--success)');
             }
         } else {
-            [nameEl, skuEl, stockEl, reorderEl, projectedEl].forEach((el) => {
-                if (el) el.textContent = '';
-            });
+            if (nameEl) nameEl.textContent = 'No product selected';
+            if (skuEl) skuEl.textContent = 'Select a product from the dropdown';
+            if (stockEl) stockEl.textContent = '—';
+            if (reorderEl) reorderEl.textContent = '—';
+            if (projectedEl) projectedEl.textContent = '—';
             if (statusEl) {
                 statusEl.className = 'badge badge-secondary';
                 statusEl.textContent = 'Select Product';
