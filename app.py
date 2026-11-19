@@ -12,7 +12,7 @@ import os
 import logging
 import secrets
 from datetime import datetime
-from flask import (Flask, current_app, render_template, request, redirect,
+from flask import (Flask, Blueprint, current_app, render_template, request, redirect,
                    url_for, flash, Response)
 from inventory_service import InventoryService
 from models import Product
@@ -20,16 +20,7 @@ from utils import format_currency, format_datetime, format_stock_status
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Application factory & Configuration
-# ---------------------------------------------------------------------------
-app = Flask(__name__)
-# Secure secret key with safe local dev fallback
-app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
-
-# Create the shared service instance
-service = InventoryService()
-app.extensions['inventory_service'] = service
+routes = Blueprint('stockly', __name__)
 
 
 def get_service():
@@ -50,16 +41,7 @@ def create_app(service_instance=None):
         'stockstatus': format_stock_status,
     })
     application.context_processor(inject_global_context)
-    for rule in app.url_map.iter_rules():
-        if rule.endpoint == 'static':
-            continue
-        application.add_url_rule(
-            rule.rule,
-            endpoint=rule.endpoint,
-            view_func=app.view_functions[rule.endpoint],
-            methods=list(rule.methods - {'HEAD', 'OPTIONS'}),
-            defaults=rule.defaults,
-        )
+    application.register_blueprint(routes)
     application.errorhandler(404)(page_not_found)
     application.errorhandler(500)(internal_error)
     return application
@@ -67,12 +49,6 @@ def create_app(service_instance=None):
 # ---------------------------------------------------------------------------
 # Jinja2 custom filters & context processors
 # ---------------------------------------------------------------------------
-app.jinja_env.filters['currency'] = format_currency
-app.jinja_env.filters['datefmt'] = format_datetime
-app.jinja_env.filters['stockstatus'] = format_stock_status
-
-
-@app.context_processor
 def inject_global_context():
     """Inject only values shared by every page."""
     return {'cache_bust': '2.3.0'}
@@ -82,7 +58,7 @@ def inject_global_context():
 # DASHBOARD
 # ============================================================================
 
-@app.route('/')
+@routes.route('/')
 def dashboard():
     """
     Event-Driven: GET / triggers dashboard rendering.
@@ -108,7 +84,7 @@ def dashboard():
 # PRODUCTS
 # ============================================================================
 
-@app.route('/products')
+@routes.route('/products')
 def products():
     """List products with search, filter, sort."""
     search_query = request.args.get('search', '').strip()
@@ -134,7 +110,7 @@ def products():
                            include_archived=include_archived)
 
 
-@app.route('/products/add', methods=['GET', 'POST'])
+@routes.route('/products/add', methods=['GET', 'POST'])
 def add_product():
     """Show the add-product form (GET) or process submission (POST)."""
     if request.method == 'POST':
@@ -154,7 +130,7 @@ def add_product():
                                    categories=Product.CATEGORIES,
                                    errors=errors)
         flash('Product added successfully!', 'success')
-        return redirect(url_for('products'))
+        return redirect(url_for('stockly.products'))
 
     return render_template('product_form.html',
                            mode='add',
@@ -163,13 +139,13 @@ def add_product():
                            errors=[])
 
 
-@app.route('/products/edit/<int:product_id>', methods=['GET', 'POST'])
+@routes.route('/products/edit/<int:product_id>', methods=['GET', 'POST'])
 def edit_product(product_id):
     """Edit an existing product's details (not quantity)."""
     product = get_service().get_product(product_id)
     if product is None:
         flash('Product not found.', 'error')
-        return redirect(url_for('products'))
+        return redirect(url_for('stockly.products'))
 
     if request.method == 'POST':
         data = {
@@ -188,7 +164,7 @@ def edit_product(product_id):
                                    categories=Product.CATEGORIES,
                                    errors=errors)
         flash('Product updated successfully!', 'success')
-        return redirect(url_for('products'))
+        return redirect(url_for('stockly.products'))
 
     return render_template('product_form.html',
                            mode='edit',
@@ -198,7 +174,7 @@ def edit_product(product_id):
                            errors=[])
 
 
-@app.route('/products/archive/<int:product_id>', methods=['POST'])
+@routes.route('/products/archive/<int:product_id>', methods=['POST'])
 def archive_product(product_id):
     """Archive (soft-delete) a product."""
     success, error = get_service().archive_product(product_id)
@@ -206,14 +182,14 @@ def archive_product(product_id):
         flash('Product archived successfully.', 'success')
     else:
         flash(error or 'Failed to archive product.', 'error')
-    return redirect(url_for('products'))
+    return redirect(url_for('stockly.products'))
 
 
 # ============================================================================
 # STOCK MANAGEMENT
 # ============================================================================
 
-@app.route('/stock')
+@routes.route('/stock')
 def stock_management():
     """Render the Stock Management page."""
     active_products = get_service().get_all_products(include_archived=False)
@@ -227,7 +203,7 @@ def stock_management():
                            error_message=None)
 
 
-@app.route('/stock/in', methods=['POST'])
+@routes.route('/stock/in', methods=['POST'])
 def stock_in():
     """
     Event-Driven: POST /stock/in triggers stock-in processing.
@@ -238,14 +214,14 @@ def stock_in():
 
     if not product_id_raw or not product_id_raw.isdigit() or int(product_id_raw) <= 0:
         flash('Please select a valid product.', 'error')
-        return redirect(url_for('stock_management', mode='in'))
+        return redirect(url_for('stockly.stock_management', mode='in'))
 
     success, message, new_qty = get_service().stock_in(int(product_id_raw), quantity, reason)
     flash(message, 'success' if success else 'error')
-    return redirect(url_for('stock_management', mode='in'))
+    return redirect(url_for('stockly.stock_management', mode='in'))
 
 
-@app.route('/stock/out', methods=['POST'])
+@routes.route('/stock/out', methods=['POST'])
 def stock_out():
     """
     Event-Driven: POST /stock/out triggers stock-out processing.
@@ -256,18 +232,18 @@ def stock_out():
 
     if not product_id_raw or not product_id_raw.isdigit() or int(product_id_raw) <= 0:
         flash('Please select a valid product.', 'error')
-        return redirect(url_for('stock_management', mode='out'))
+        return redirect(url_for('stockly.stock_management', mode='out'))
 
     success, message, new_qty = get_service().stock_out(int(product_id_raw), quantity, reason)
     flash(message, 'success' if success else 'error')
-    return redirect(url_for('stock_management', mode='out'))
+    return redirect(url_for('stockly.stock_management', mode='out'))
 
 
 # ============================================================================
 # TRANSACTIONS
 # ============================================================================
 
-@app.route('/transactions')
+@routes.route('/transactions')
 def transactions():
     """Display transaction history with filters."""
     product_id = request.args.get('product_id', '').strip()
@@ -326,7 +302,7 @@ def transactions():
 # REPORTS
 # ============================================================================
 
-@app.route('/reports')
+@routes.route('/reports')
 def reports():
     """Render the Reports page with real data."""
     low_stock = get_service().get_low_stock_products()
@@ -340,7 +316,7 @@ def reports():
                            category_breakdown=category_breakdown)
 
 
-@app.route('/reports/export/products')
+@routes.route('/reports/export/products')
 def export_products():
     """Download products as CSV."""
     csv_data = get_service().export_products_csv()
@@ -351,7 +327,7 @@ def export_products():
     )
 
 
-@app.route('/reports/export/transactions')
+@routes.route('/reports/export/transactions')
 def export_transactions():
     """Download transactions as CSV."""
     csv_data = get_service().export_transactions_csv()
@@ -366,7 +342,7 @@ def export_transactions():
 # SETTINGS
 # ============================================================================
 
-@app.route('/settings')
+@routes.route('/settings')
 def settings():
     """Display application settings and information."""
     app_info = {
@@ -386,12 +362,10 @@ def settings():
 # ERROR HANDLERS
 # ============================================================================
 
-@app.errorhandler(404)
 def page_not_found(e):
     return render_template('404.html'), 404
 
 
-@app.errorhandler(500)
 def internal_error(e):
     logger.exception('Unhandled application error')
     return render_template('500.html'), 500
@@ -402,6 +376,7 @@ def internal_error(e):
 # ============================================================================
 
 if __name__ == '__main__':
+    app = create_app()
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1')
     print('=' * 60)
     print('  STOCKLY — Inventory & Resource Management System')

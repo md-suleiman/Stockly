@@ -12,6 +12,7 @@ import os
 import tempfile
 import unittest
 import sqlite3
+from datetime import date, timedelta
 import app as app_module
 
 from database import Database
@@ -28,7 +29,6 @@ from utils import (
     format_datetime
 )
 from seed import seed_database
-from app import app
 
 
 class TestStocklyService(unittest.TestCase):
@@ -404,10 +404,10 @@ class TestStocklyService(unittest.TestCase):
         movements = self.service.get_daily_movement_stats(days=7)
         self.assertEqual(len(movements['days']), 7)
         self.assertTrue(movements['has_movement'])
-        self.assertEqual(movements['max_movement'], 15)
-        # Today's movement should reflect stock in (opening 10 + 5) and stock out (2)
+        self.assertEqual(movements['max_movement'], 5)
+        # Opening balances are not ordinary Stock In movement.
         today_data = movements['days'][-1]
-        self.assertGreaterEqual(today_data['stock_in'], 15)
+        self.assertEqual(today_data['stock_in'], 5)
         self.assertGreaterEqual(today_data['stock_out'], 2)
 
     def test_daily_movement_empty_state_and_percentages(self):
@@ -421,7 +421,7 @@ class TestStocklyService(unittest.TestCase):
         ))
         self.service.stock_in(product_id, '99', 'Large receipt')
         movement = self.service.get_daily_movement_stats(days=7)
-        self.assertEqual(movement['max_movement'], 100)
+        self.assertEqual(movement['max_movement'], 99)
         self.assertEqual(movement['days'][-1]['stock_in_percentage'], 100)
 
     # ------------------------------------------------------------------------
@@ -536,7 +536,7 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
     def test_error_pages_return_http_errors(self):
         self.assertEqual(self.client.get('/missing-page').status_code, 404)
         self.test_app.config['TESTING'] = False
-        self.test_app.view_functions['dashboard'] = lambda: (_ for _ in ()).throw(
+        self.test_app.view_functions['stockly.dashboard'] = lambda: (_ for _ in ()).throw(
             RuntimeError('test failure')
         )
         response = self.client.get('/')
@@ -579,8 +579,8 @@ class TestHistoricalSeed(unittest.TestCase):
         try:
             first = seed_database(path)
             second = seed_database(path)
-            self.assertEqual(first['products_added'], 12)
-            self.assertEqual(first['transactions_added'], 27)
+            self.assertEqual(first['products_added'], 6)
+            self.assertEqual(first['transactions_added'], 20)
             self.assertEqual(second['transactions_added'], 0)
             conn = sqlite3.connect(path)
             self.assertEqual(conn.execute(
@@ -594,6 +594,110 @@ class TestHistoricalSeed(unittest.TestCase):
             conn.close()
         finally:
             os.unlink(path)
+
+    def test_seed_preserves_legacy_zero_stock_products_and_v1_marker(self):
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        try:
+            db = Database(path)
+            db.init_db()
+            conn = db.get_connection()
+            conn.execute(
+                '''INSERT INTO products
+                   (sku, name, category, price, quantity, reorder_level,
+                    is_active, created_at, updated_at)
+                   VALUES ('ELE-WMOUSE', 'Legacy Mouse', 'Electronics',
+                           10, 0, 1, 1, '2026-11-19 08:00:00',
+                           '2026-11-19 08:00:00')'''
+            )
+            conn.execute(
+                "INSERT INTO app_metadata(key, value) VALUES ('demo_seed', 'historical-demo-v1')"
+            )
+            conn.commit()
+            conn.close()
+            result = seed_database(path)
+            self.assertEqual(result['products_added'], 6)
+            conn = sqlite3.connect(path)
+            self.assertEqual(conn.execute(
+                "SELECT name FROM products WHERE sku = 'ELE-WMOUSE'"
+            ).fetchone()[0], 'Legacy Mouse')
+            self.assertEqual(conn.execute(
+                "SELECT COUNT(*) FROM products WHERE sku LIKE 'DEMO-%'"
+            ).fetchone()[0], 6)
+            conn.close()
+        finally:
+            os.unlink(path)
+
+    def test_seed_populates_every_day_with_both_movement_types_and_varied_quantities(self):
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        try:
+            seed_database(path)
+            conn = sqlite3.connect(path)
+            rows = conn.execute(
+                """SELECT substr(created_at, 1, 10), transaction_type,
+                          SUM(quantity)
+                   FROM stock_transactions
+                   WHERE reason LIKE '[DEMO]%'
+                     AND transaction_type IN ('STOCK_IN', 'STOCK_OUT')
+                   GROUP BY 1, 2"""
+            ).fetchall()
+            by_day = {}
+            for txn_date, txn_type, quantity in rows:
+                by_day.setdefault(txn_date, {})[txn_type] = quantity
+            self.assertEqual(set(by_day), {
+                (date.today() - timedelta(days=i)).isoformat() for i in range(7)
+            })
+            self.assertTrue(all(
+                set(day) == {'STOCK_IN', 'STOCK_OUT'} for day in by_day.values()
+            ))
+            self.assertGreater(len({
+                tuple(day.values()) for day in by_day.values()
+            }), 1)
+            conn.close()
+        finally:
+            os.unlink(path)
+
+    def test_transaction_date_filters_accept_space_and_iso_timestamps(self):
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        db = Database(path)
+        db.init_db()
+        service = InventoryService(db)
+        product_id, errors = service.add_product({
+            'name': 'Date Filter Product',
+            'sku': 'DATE-FILTER-1',
+            'category': 'Electronics',
+            'price': '10',
+            'quantity': '0',
+            'reorder_level': '1',
+        })
+        self.assertEqual(errors, [])
+        conn = db.get_connection()
+        conn.execute(
+            '''INSERT INTO stock_transactions
+               (product_id, transaction_type, quantity, stock_before,
+                stock_after, reason, created_at)
+               VALUES (?, 'STOCK_IN', 2, 0, 2, 'iso', '2026-11-19T10:00:00')''',
+            (product_id,),
+        )
+        conn.execute(
+            '''INSERT INTO stock_transactions
+               (product_id, transaction_type, quantity, stock_before,
+                stock_after, reason, created_at)
+               VALUES (?, 'STOCK_OUT', 1, 2, 1, 'space', '2026-11-19 12:00:00')''',
+            (product_id,),
+        )
+        conn.commit()
+        conn.close()
+        transactions = service.get_transactions(
+            product_id=product_id,
+            date_from='2026-11-19',
+            date_to='2026-11-19',
+            sort_order='ASC',
+        )
+        self.assertEqual([txn.reason for txn in transactions], ['iso', 'space'])
+        os.unlink(path)
 
 
 if __name__ == '__main__':

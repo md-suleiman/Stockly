@@ -206,12 +206,20 @@ img, svg {
     padding: 20px 14px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.sidebar-navigation {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
 }
 
 .sidebar-settings {
     padding: 14px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+    flex: 0 0 auto;
 }
 
 .sidebar-nav svg {
@@ -249,6 +257,17 @@ img, svg {
     display: flex;
     flex-direction: column;
     gap: 2px;
+}
+
+.quick-actions {
+    padding: 10px 6px 8px;
+    border: 1px solid rgba(92, 137, 224, 0.22);
+    border-radius: var(--radius-md);
+    background: rgba(31, 63, 130, 0.22);
+}
+
+.quick-actions .nav-section-title {
+    padding-top: 2px;
 }
 
 .nav-section-title {

@@ -359,12 +359,12 @@ class InventoryService:
                 params.append(transaction_type)
 
             if date_from:
-                sql += ' AND t.created_at >= ?'
+                sql += " AND substr(replace(t.created_at, 'T', ' '), 1, 10) >= ?"
                 params.append(date_from)
 
             if date_to:
-                sql += ' AND t.created_at <= ?'
-                params.append(date_to + ' 23:59:59')
+                sql += " AND substr(replace(t.created_at, 'T', ' '), 1, 10) <= ?"
+                params.append(date_to)
 
             if search:
                 sql += ' AND (LOWER(p.name) LIKE ? OR LOWER(p.sku) LIKE ? OR LOWER(t.reason) LIKE ?)'
@@ -372,9 +372,9 @@ class InventoryService:
                 params.extend([q, q, q])
 
             if str(sort_order).upper() in ('ASC', 'OLDEST'):
-                sql += ' ORDER BY t.created_at ASC'
+                sql += " ORDER BY datetime(replace(t.created_at, 'T', ' ')) ASC, t.transaction_id ASC"
             else:
-                sql += ' ORDER BY t.created_at DESC'
+                sql += " ORDER BY datetime(replace(t.created_at, 'T', ' ')) DESC, t.transaction_id DESC"
 
             rows = conn.execute(sql, params).fetchall()
             return [StockTransaction.from_row(r) for r in rows]
@@ -455,7 +455,8 @@ class InventoryService:
                 '''SELECT t.*, p.name, p.sku
                    FROM stock_transactions t
                    JOIN products p ON t.product_id = p.product_id
-                   ORDER BY t.created_at DESC
+                   ORDER BY datetime(replace(t.created_at, 'T', ' ')) DESC,
+                            t.transaction_id DESC
                    LIMIT ?''',
                 (limit,)
             ).fetchall()
@@ -523,17 +524,16 @@ class InventoryService:
             dates = [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
             date_strings = [d.strftime('%Y-%m-%d') for d in dates]
 
-            start_date = date_strings[0]
-            end_date = date_strings[-1] + ' 23:59:59'
-
             rows = conn.execute(
                 '''SELECT substr(created_at, 1, 10) as txn_date,
                           transaction_type,
                           SUM(quantity) as total_qty
                    FROM stock_transactions
-                   WHERE created_at >= ? AND created_at <= ?
+                   WHERE replace(substr(created_at, 1, 10), 'T', ' ') >= ?
+                     AND replace(substr(created_at, 1, 10), 'T', ' ') <= ?
+                     AND transaction_type IN ('STOCK_IN', 'STOCK_OUT')
                    GROUP BY substr(created_at, 1, 10), transaction_type''',
-                (start_date, end_date)
+                (date_strings[0], date_strings[-1])
             ).fetchall()
 
             totals = {}
@@ -544,7 +544,7 @@ class InventoryService:
             result = []
             for d in dates:
                 d_str = d.strftime('%Y-%m-%d')
-                stock_in = totals.get((d_str, 'STOCK_IN'), 0) + totals.get((d_str, 'OPENING'), 0)
+                stock_in = totals.get((d_str, 'STOCK_IN'), 0)
                 stock_out = totals.get((d_str, 'STOCK_OUT'), 0)
                 result.append({
                     'date': d_str,

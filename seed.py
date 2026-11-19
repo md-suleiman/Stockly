@@ -4,58 +4,41 @@ The seed is deliberately independent of the service layer so timestamps and
 ledger balances can be created as one consistent SQLite transaction.
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 import os
 import shutil
-import sqlite3
 
 from database import Database
 
 
-DEMO_VERSION = 'historical-demo-v1'
+DEMO_VERSION = 'historical-demo-v2'
 DEMO_MARKER = '[DEMO]'
-LEGACY_REASONS = {
-    'Opening stock',
-    'Supplier delivery',
-    'Customer order fulfilled',
-    'Restocking from warehouse',
-    'Walk-in customer purchase',
-    'Bulk purchase received',
-}
 
 PRODUCTS = [
-    ('Wireless Mouse', 'ELE-WMOUSE', 'Electronics', 599.00, 45, 10),
-    ('USB-C Cable (1m)', 'ELE-USBC1M', 'Electronics', 199.00, 120, 20),
-    ('Laptop Stand', 'ELE-LPSTND', 'Electronics', 1499.00, 8, 5),
-    ('Spiral Notebook (200 pages)', 'STA-NB200', 'Stationery', 85.00, 200, 50),
-    ('Ballpoint Pen Pack (10)', 'STA-BPPEN10', 'Stationery', 120.00, 5, 15),
-    ('Stainless Steel Water Bottle', 'HOM-WTRBOTL', 'Home & Living', 450.00, 0, 10),
-    ('Canvas Backpack', 'CLO-BKPACK', 'Clothing', 1299.00, 25, 8),
-    ('Over-Ear Headphones', 'ELE-HDPHN', 'Electronics', 2499.00, 3, 5),
-    ('Mechanical Keyboard', 'ELE-MCKBD', 'Electronics', 3499.00, 15, 5),
-    ('Basmati Rice (5 kg)', 'GRO-RICE5K', 'Grocery', 375.00, 60, 20),
-    ('Green Tea (25 bags)', 'GRO-GTEA25', 'Grocery', 150.00, 0, 10),
-    ('Cotton T-Shirt (M)', 'CLO-TSHRTM', 'Clothing', 499.00, 40, 10),
+    ('Demo Wireless Mouse', 'DEMO-ELE-WMOUSE', 'Electronics', 599.00, 45, 10),
+    ('Demo USB-C Cable (1m)', 'DEMO-ELE-USBC1M', 'Electronics', 199.00, 120, 20),
+    ('Demo Spiral Notebook', 'DEMO-STA-NB200', 'Stationery', 85.00, 200, 50),
+    ('Demo Water Bottle', 'DEMO-HOM-WTRBOTL', 'Home & Living', 450.00, 18, 10),
+    ('Demo Canvas Backpack', 'DEMO-CLO-BKPACK', 'Clothing', 1299.00, 25, 8),
+    ('Demo Basmati Rice', 'DEMO-GRO-RICE5K', 'Grocery', 375.00, 60, 20),
 ]
 
-# (day offset, sku, type, quantity, reason)
+# (day offset from oldest date, sku, type, quantity, reason)
 MOVEMENTS = [
-    (0, 'ELE-WMOUSE', 'STOCK_IN', 12, 'Supplier delivery'),
-    (0, 'ELE-USBC1M', 'STOCK_OUT', 7, 'Retail sale'),
-    (1, 'ELE-LPSTND', 'STOCK_IN', 8, 'Warehouse replenishment'),
-    (1, 'STA-NB200', 'STOCK_OUT', 15, 'Customer order'),
-    (2, 'STA-BPPEN10', 'STOCK_IN', 3, 'Supplier delivery'),
-    (2, 'STA-BPPEN10', 'STOCK_OUT', 8, 'Retail sale'),
-    (2, 'HOM-WTRBOTL', 'STOCK_OUT', 4, 'Customer order'),
-    (3, 'CLO-BKPACK', 'STOCK_OUT', 6, 'Customer order'),
-    (3, 'ELE-HDPHN', 'STOCK_IN', 7, 'Supplier delivery'),
-    (3, 'ELE-HDPHN', 'STOCK_OUT', 10, 'Retail sale'),
-    (4, 'ELE-MCKBD', 'STOCK_OUT', 9, 'Customer order'),
-    (4, 'GRO-RICE5K', 'STOCK_IN', 12, 'Warehouse replenishment'),
-    (5, 'GRO-GTEA25', 'STOCK_OUT', 6, 'Retail sale'),
-    (5, 'CLO-TSHRTM', 'STOCK_IN', 10, 'Supplier delivery'),
-    (6, 'ELE-WMOUSE', 'STOCK_OUT', 5, 'Retail sale'),
-    (6, 'ELE-USBC1M', 'STOCK_IN', 14, 'Warehouse replenishment'),
+    (0, 'DEMO-ELE-WMOUSE', 'STOCK_IN', 8, 'Supplier delivery'),
+    (0, 'DEMO-ELE-USBC1M', 'STOCK_OUT', 5, 'Retail sale'),
+    (1, 'DEMO-ELE-USBC1M', 'STOCK_IN', 22, 'Warehouse replenishment'),
+    (1, 'DEMO-STA-NB200', 'STOCK_OUT', 11, 'Customer order'),
+    (2, 'DEMO-STA-NB200', 'STOCK_IN', 35, 'Supplier delivery'),
+    (2, 'DEMO-HOM-WTRBOTL', 'STOCK_OUT', 4, 'Retail sale'),
+    (3, 'DEMO-HOM-WTRBOTL', 'STOCK_IN', 18, 'Warehouse replenishment'),
+    (3, 'DEMO-CLO-BKPACK', 'STOCK_OUT', 7, 'Customer order'),
+    (4, 'DEMO-CLO-BKPACK', 'STOCK_IN', 16, 'Supplier delivery'),
+    (4, 'DEMO-GRO-RICE5K', 'STOCK_OUT', 13, 'Retail sale'),
+    (5, 'DEMO-GRO-RICE5K', 'STOCK_IN', 28, 'Supplier delivery'),
+    (5, 'DEMO-ELE-WMOUSE', 'STOCK_OUT', 6, 'Customer order'),
+    (6, 'DEMO-ELE-WMOUSE', 'STOCK_IN', 14, 'Warehouse replenishment'),
+    (6, 'DEMO-ELE-USBC1M', 'STOCK_OUT', 9, 'Retail sale'),
 ]
 
 
@@ -65,24 +48,6 @@ def _backup_database(db_path):
     backup_path = f'{db_path}.pre-demo-backup'
     shutil.copy2(db_path, backup_path)
     return backup_path
-
-
-def _legacy_demo_products(conn):
-    """Return legacy product IDs only when every ledger row is seed-generated."""
-    ids = []
-    for row in conn.execute(
-        "SELECT product_id, sku FROM products WHERE sku IN ({})".format(
-            ','.join('?' for _ in PRODUCTS)
-        ),
-        [p[1] for p in PRODUCTS],
-    ):
-        transactions = conn.execute(
-            'SELECT reason FROM stock_transactions WHERE product_id = ?',
-            (row['product_id'],),
-        ).fetchall()
-        if transactions and all((t['reason'] or '') in LEGACY_REASONS for t in transactions):
-            ids.append(row['product_id'])
-    return ids
 
 
 def _insert_product(conn, product, created_at):
@@ -97,8 +62,7 @@ def _insert_product(conn, product, created_at):
     return cursor.lastrowid
 
 
-def _seed_ledger(conn, product_ids, now):
-    start = now - timedelta(days=6)
+def _seed_ledger(conn, product_ids, today):
     balances = {sku: target for _, sku, _, _, target, _ in PRODUCTS}
     for _, sku, transaction_type, quantity, _ in MOVEMENTS:
         balances[sku] += quantity if transaction_type == 'STOCK_OUT' else -quantity
@@ -107,15 +71,15 @@ def _seed_ledger(conn, product_ids, now):
         _, sku, _, _, target, _ = product
         opening = balances[sku]
         product_id = product_ids[sku]
-        if opening:
-            timestamp = (start + timedelta(hours=7)).isoformat(timespec='seconds')
-            conn.execute(
-                '''INSERT INTO stock_transactions
-                   (product_id, transaction_type, quantity, stock_before,
-                    stock_after, reason, created_at)
-                   VALUES (?, 'OPENING', ?, 0, ?, ?, ?)''',
-                (product_id, opening, opening, f'{DEMO_MARKER} Opening balance', timestamp),
-            )
+        oldest_date = today - timedelta(days=6)
+        timestamp = datetime.combine(oldest_date, time(7, 0)).strftime('%Y-%m-%d %H:%M:%S')
+        conn.execute(
+            '''INSERT INTO stock_transactions
+               (product_id, transaction_type, quantity, stock_before,
+                stock_after, reason, created_at)
+               VALUES (?, 'OPENING', ?, 0, ?, ?, ?)''',
+            (product_id, opening, opening, f'{DEMO_MARKER} Opening balance', timestamp),
+        )
         current = opening
         for day, move_sku, move_type, quantity, reason in MOVEMENTS:
             if move_sku != sku:
@@ -127,7 +91,10 @@ def _seed_ledger(conn, product_ids, now):
                 if quantity > current:
                     raise ValueError(f'negative demo balance for {sku}')
                 current -= quantity
-            timestamp = (start + timedelta(days=day, hours=9 + day)).isoformat(timespec='seconds')
+            movement_date = oldest_date + timedelta(days=day)
+            timestamp = datetime.combine(
+                movement_date, time(9 if move_type == 'STOCK_IN' else 15, 0)
+            ).strftime('%Y-%m-%d %H:%M:%S')
             conn.execute(
                 '''INSERT INTO stock_transactions
                    (product_id, transaction_type, quantity, stock_before,
@@ -140,7 +107,7 @@ def _seed_ledger(conn, product_ids, now):
             raise ValueError(f'demo ledger mismatch for {sku}: {current} != {target}')
         conn.execute(
             'UPDATE products SET quantity = ?, updated_at = ? WHERE product_id = ?',
-            (current, now.isoformat(timespec='seconds'), product_id),
+            (current, datetime.combine(today, time(18, 0)).strftime('%Y-%m-%d %H:%M:%S'), product_id),
         )
 
 
@@ -154,30 +121,45 @@ def seed_database(db_path=None):
     skipped_products = 0
     backup_path = None
     try:
+        existing = {
+            row['sku']: row['product_id']
+            for row in conn.execute(
+                "SELECT sku, product_id FROM products WHERE sku LIKE 'DEMO-%'"
+            )
+        }
+        existing_txns = sum(
+            conn.execute(
+                'SELECT COUNT(*) FROM stock_transactions WHERE product_id = ?',
+                (product_id,),
+            ).fetchone()[0]
+            for product_id in existing.values()
+        )
         marker = conn.execute(
             'SELECT value FROM app_metadata WHERE key = ?', ('demo_seed',)
         ).fetchone()
-        if marker and marker['value'] == DEMO_VERSION:
-            print('Seed skipped: historical demo data is already present.')
-            return {'products_added': 0, 'transactions_added': 0, 'products_skipped': len(PRODUCTS)}
-
-        legacy_ids = _legacy_demo_products(conn)
-        if legacy_ids:
-            backup_path = _backup_database(db.db_path)
-            placeholders = ','.join('?' for _ in legacy_ids)
-            conn.execute(
-                f'DELETE FROM stock_transactions WHERE product_id IN ({placeholders})',
-                legacy_ids,
+        if marker and marker['value'] == DEMO_VERSION and len(existing) == len(PRODUCTS):
+            expected_dates = {
+                (date.today() - timedelta(days=i)).isoformat() for i in range(7)
+            }
+            actual_dates = {
+                row['txn_date'] for row in conn.execute(
+                    """                    SELECT DISTINCT substr(t.created_at, 1, 10) AS txn_date
+                       FROM stock_transactions t
+                       JOIN products p ON p.product_id = t.product_id
+                       WHERE p.sku LIKE 'DEMO-%'
+                         AND t.transaction_type IN ('STOCK_IN', 'STOCK_OUT')"""
+                )
+            }
+            if actual_dates == expected_dates and existing_txns >= len(MOVEMENTS):
+                print(f'Database: {db.db_path}')
+                print('Seed skipped: validated historical demo data is already present.')
+                return {'products_added': 0, 'transactions_added': 0, 'products_skipped': len(PRODUCTS)}
+        if existing:
+            raise RuntimeError(
+                'Dedicated DEMO-* products already exist but are incomplete or '
+                'invalid; refusing to alter them or their transaction history.'
             )
-            conn.execute(
-                f'DELETE FROM products WHERE product_id IN ({placeholders})',
-                legacy_ids,
-            )
 
-        existing = {
-            row['sku']: row['product_id']
-            for row in conn.execute('SELECT sku, product_id FROM products')
-        }
         product_ids = {}
         for product in PRODUCTS:
             sku = product[1]
@@ -186,40 +168,20 @@ def seed_database(db_path=None):
                 skipped_products += 1
             else:
                 product_ids[sku] = _insert_product(
-                    conn, product, datetime.now().isoformat(timespec='seconds')
+                    conn, product, datetime.combine(date.today(), time(8, 0)).strftime('%Y-%m-%d %H:%M:%S')
                 )
                 added_products += 1
 
-        # A mixed ledger is never rewritten. It is safer to leave it untouched
-        # than to fabricate a historical balance around user-created records.
-        mixed = [
-            sku for sku, product_id in product_ids.items()
-            if conn.execute(
-                'SELECT 1 FROM stock_transactions WHERE product_id = ? LIMIT 1',
-                (product_id,),
-            ).fetchone()
-        ]
-        untracked_existing = [
-            sku for sku, product_id in product_ids.items()
-            if sku in existing and sku not in mixed
-        ]
-        if untracked_existing:
-            raise RuntimeError(
-                'Existing demo SKUs have no identifiable seed ledger; no data '
-                f'was changed for: {", ".join(untracked_existing)}'
-            )
-        if mixed:
-            raise RuntimeError(
-                'Demo SKUs already contain unmarked transactions; no historical '
-                f'data was changed for: {", ".join(mixed)}'
-            )
-
-        now = datetime.now().replace(microsecond=0)
-        _seed_ledger(conn, product_ids, now)
-        added_transactions = conn.execute(
+        before_transactions = conn.execute(
             "SELECT COUNT(*) FROM stock_transactions WHERE reason LIKE ?",
             (f'{DEMO_MARKER}%',),
         ).fetchone()[0]
+        _seed_ledger(conn, product_ids, date.today())
+        after_transactions = conn.execute(
+            "SELECT COUNT(*) FROM stock_transactions WHERE reason LIKE ?",
+            (f'{DEMO_MARKER}%',),
+        ).fetchone()[0]
+        added_transactions = after_transactions - before_transactions
         conn.execute(
             'INSERT OR REPLACE INTO app_metadata(key, value) VALUES (?, ?)',
             ('demo_seed', DEMO_VERSION),
@@ -233,11 +195,13 @@ def seed_database(db_path=None):
 
     if backup_path:
         print(f'  Backup created: {backup_path}')
+    print(f'Database: {db.db_path}')
     print(
         f'Seed complete: {added_products} products added, '
         f'{added_transactions} sample transactions added, '
         f'{skipped_products} products skipped.'
     )
+    print(f'Date range: {(datetime.now().date() - timedelta(days=6)).isoformat()} through {datetime.now().date().isoformat()}')
     return {
         'products_added': added_products,
         'transactions_added': added_transactions,
