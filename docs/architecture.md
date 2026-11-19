@@ -8,7 +8,7 @@ Stockly adopts a clean, layered architecture separating user interface presentat
 +-------------------------------------------------------------------------+
 |                              Browser UI                                 |
 |  - HTML5 Responsive Views (Jinja2 Templates)                            |
-|  - SaaS Styling & Pure CSS Charts (style.css)                           |
+|  - Responsive UI Styling & Pure CSS Charts (style.css)                  |
 |  - Client-Side Event Listeners & Dynamic DOM Updates (app.js)           |
 +------------------------------------+------------------------------------+
                                      | HTTP Requests (GET / POST)

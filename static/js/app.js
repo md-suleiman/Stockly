@@ -260,9 +260,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const existingQty = Number(previewStock && previewStock.dataset.quantity);
         const qtyText = formQtyInput ? formQtyInput.value.trim() : '';
         const reorderText = formReorderInput ? formReorderInput.value.trim() : '';
-        const qtyValid = /^\d+$/.test(qtyText);
+        const editMode = !formQtyInput;
+        const existingQtyValid = Number.isInteger(existingQty) && existingQty >= 0;
+        const qtyValid = editMode ? existingQtyValid : /^\d+$/.test(qtyText);
         const reorderValid = /^\d+$/.test(reorderText);
-        const qtyVal = qtyValid ? Number(qtyText) : (!isNaN(existingQty) ? existingQty : 0);
+        const qtyVal = editMode ? existingQty : (qtyValid ? Number(qtyText) : 0);
         const reorderVal = reorderValid ? Number(reorderText) : 10;
 
         previewName.textContent = nameVal;
