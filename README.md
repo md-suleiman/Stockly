@@ -47,7 +47,7 @@ Stockly directly demonstrates core software engineering and programming paradigm
 
 - **🔄 Comprehensive Transaction History & Audit Log:**
   - Complete chronological audit log of all inventory movements (`OPENING`, `STOCK_IN`, `STOCK_OUT`).
-  - Records reference ID, UTC timestamp, product name, SKU, movement type, quantity change (`+` / `-`), stock progression (`before → after`), and operator audit notes.
+  - Records reference ID, local SQLite timestamp, product name, SKU, movement type, quantity change (`+` / `-`), stock progression (`before → after`), and operator audit notes.
   - **Collapsible Filter Drawer:** Quick-access search and product filters with an expandable drawer for precise date range filtering (`Date From`, `Date To`, sort sequence).
 
 - **📈 Analytical Reports & RFC 4180 CSV Export:**
@@ -67,7 +67,7 @@ Stockly directly demonstrates core software engineering and programming paradigm
 | Layer | Technology | Details |
 |---|---|---|
 | **Frontend** | HTML5, CSS3, Vanilla JS | Custom modern SaaS design system (1,700+ lines of CSS), CSS Grid/Flexbox, SVG line icons, zero external CDN dependencies |
-| **Templates** | Jinja2 | Reusable master layout (`base.html`), dynamic sidebar health widget, modular partials, custom formatting filters |
+| **Templates** | Jinja2 | Reusable master layout (`base.html`), modular page templates, custom formatting filters |
 | **Backend** | Python 3 (Flask) | Lightweight WSGI web framework, RESTful routing, modular service architecture |
 | **Database** | SQLite3 | Embedded ACID-compliant database with foreign key enforcement and parameterized SQL queries |
 | **Testing** | `unittest` | 30 comprehensive automated unit and HTTP integration test cases |
@@ -92,7 +92,7 @@ Stockly/
 │   └── stockly.db              # SQLite persistent database (created on first run)
 │
 ├── templates/
-│   ├── base.html               # Master layout with dark navy sidebar, health widget, and top bar
+│   ├── base.html               # Master layout with dark navy sidebar and top utility bar
 │   ├── dashboard.html          # Resource Management overview with KPI cards and charts
 │   ├── products.html           # Product catalog with search, filter, and archive actions
 │   ├── product_form.html       # 2-column Add/Edit product form with live interactive preview

@@ -170,10 +170,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Calculate Projected Balance
             const isStockIn = activePanel.id === 'panel-stock-in';
-            const projected = isStockIn ? (currentQty + moveQty) : Math.max(0, currentQty - moveQty);
+            const insufficient = !isStockIn && moveQty > currentQty;
+            const projected = currentQty - moveQty;
             if (projectedEl) {
-                projectedEl.textContent = `${projected} units`;
-                projectedEl.style.color = isStockIn ? 'var(--success)' : (projected <= reorderLvl ? 'var(--danger)' : 'var(--text-primary)');
+                projectedEl.textContent = insufficient ? 'Insufficient stock' : `${isStockIn ? currentQty + moveQty : projected} units`;
+                projectedEl.style.color = insufficient ? 'var(--danger)' : (isStockIn ? 'var(--success)' : (projected <= reorderLvl ? 'var(--danger)' : 'var(--text-primary)'));
             }
 
             // Update Status Badge
@@ -196,6 +197,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const pct = Math.min(100, Math.round((currentQty / maxMeter) * 100));
                 meterFill.style.width = `${pct}%`;
                 meterFill.style.backgroundColor = currentQty === 0 ? 'var(--danger)' : (currentQty <= reorderLvl ? 'var(--warning)' : 'var(--success)');
+            }
+        } else {
+            [nameEl, skuEl, stockEl, reorderEl, projectedEl].forEach((el) => {
+                if (el) el.textContent = '';
+            });
+            if (statusEl) {
+                statusEl.className = 'badge badge-secondary';
+                statusEl.textContent = 'Select Product';
+            }
+            if (meterFill) {
+                meterFill.style.width = '0%';
+                meterFill.style.backgroundColor = 'var(--border-color)';
             }
         }
     }
@@ -238,7 +251,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const skuVal = formSkuInput && formSkuInput.value.trim() ? formSkuInput.value.trim() : 'SKU-SAMPLE';
         const catVal = formCategorySelect ? formCategorySelect.value : 'General';
         const priceVal = formPriceInput && !isNaN(parseFloat(formPriceInput.value)) ? parseFloat(formPriceInput.value).toFixed(2) : '0.00';
-        const qtyVal = formQtyInput && !isNaN(parseInt(formQtyInput.value, 10)) ? parseInt(formQtyInput.value, 10) : 0;
+        const existingQty = Number(previewStock && previewStock.dataset.quantity);
+        const qtyVal = formQtyInput && !isNaN(parseInt(formQtyInput.value, 10))
+            ? parseInt(formQtyInput.value, 10)
+            : (!isNaN(existingQty) ? existingQty : 0);
         const reorderVal = formReorderInput && !isNaN(parseInt(formReorderInput.value, 10)) ? parseInt(formReorderInput.value, 10) : 10;
 
         previewName.textContent = nameVal;

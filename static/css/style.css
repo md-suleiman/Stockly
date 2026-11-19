@@ -209,6 +209,42 @@ img, svg {
     gap: 20px;
 }
 
+.sidebar-settings {
+    padding: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-nav svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    stroke-width: 1.8;
+}
+
+.sidebar-nav .nav-link {
+    gap: 12px;
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+}
+
+.settings-grid .settings-group-card:last-child {
+    grid-column: 1 / -1;
+}
+
+.settings-rules {
+    display: grid;
+    gap: 12px;
+    color: var(--text-secondary);
+}
+
+.settings-rules strong {
+    color: var(--text-primary);
+}
+
 .nav-group {
     display: flex;
     flex-direction: column;
@@ -1664,6 +1700,13 @@ textarea.form-control {
 }
 
 @media (max-width: 900px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-grid .settings-group-card:last-child {
+        grid-column: auto;
+    }
     .grid-2 {
         grid-template-columns: 1fr;
     }

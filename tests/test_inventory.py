@@ -12,6 +12,7 @@ import os
 import tempfile
 import unittest
 import sqlite3
+import app as app_module
 
 from database import Database
 from models import Product, StockTransaction
@@ -385,6 +386,12 @@ class TestStocklyService(unittest.TestCase):
         # 1 / 3 = 33%
         self.assertEqual(health['health_percent'], 33)
 
+    def test_empty_inventory_health_is_not_healthy(self):
+        health = self.service.get_inventory_health_stats()
+        self.assertEqual(health['total_active'], 0)
+        self.assertIsNone(health['health_percent'])
+        self.assertEqual(health['health_label'], 'N/A')
+
     # ------------------------------------------------------------------------
     # 20. Daily Movement 7-Day Statistics
     # ------------------------------------------------------------------------
@@ -394,11 +401,27 @@ class TestStocklyService(unittest.TestCase):
         self.service.stock_out(p_id, '2', 'Order')
 
         movements = self.service.get_daily_movement_stats(days=7)
-        self.assertEqual(len(movements), 7)
+        self.assertEqual(len(movements['days']), 7)
+        self.assertTrue(movements['has_movement'])
+        self.assertEqual(movements['max_movement'], 15)
         # Today's movement should reflect stock in (opening 10 + 5) and stock out (2)
-        today_data = movements[-1]
+        today_data = movements['days'][-1]
         self.assertGreaterEqual(today_data['stock_in'], 15)
         self.assertGreaterEqual(today_data['stock_out'], 2)
+
+    def test_daily_movement_empty_state_and_percentages(self):
+        empty = self.service.get_daily_movement_stats(days=7)
+        self.assertEqual(len(empty['days']), 7)
+        self.assertFalse(empty['has_movement'])
+        self.assertTrue(all(d['stock_in_percentage'] == 0 for d in empty['days']))
+
+        product_id, _ = self.service.add_product(self._sample_product_data(
+            sku='SCALE-1', quantity='1'
+        ))
+        self.service.stock_in(product_id, '99', 'Large receipt')
+        movement = self.service.get_daily_movement_stats(days=7)
+        self.assertEqual(movement['max_movement'], 100)
+        self.assertEqual(movement['days'][-1]['stock_in_percentage'], 100)
 
     # ------------------------------------------------------------------------
     # 21. CSV Export RFC4180 Escaping (handles quotes and commas safely)
@@ -426,13 +449,24 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
     def setUp(self):
         app.config['TESTING'] = True
         app.config['WTF_CSRF_ENABLED'] = False
+        self.temp_db_fd, self.temp_db_path = tempfile.mkstemp(suffix='.db')
+        self.route_db = Database(db_path=self.temp_db_path)
+        self.route_service = InventoryService(db=self.route_db)
+        self.previous_service = app.extensions['inventory_service']
+        app_module.create_app(self.route_service)
         self.client = app.test_client()
+
+    def tearDown(self):
+        app_module.create_app(self.previous_service)
+        os.close(self.temp_db_fd)
+        if os.path.exists(self.temp_db_path):
+            os.unlink(self.temp_db_path)
 
     def test_dashboard_route(self):
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'Resource Management', response.data)
-        self.assertIn(b'Smarter Stock. Simpler Management.', response.data)
+        self.assertIn(b'Your inventory at a glance.', response.data)
 
     def test_products_route(self):
         response = self.client.get('/products')
@@ -482,4 +516,3 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

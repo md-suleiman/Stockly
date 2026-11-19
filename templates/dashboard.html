@@ -7,8 +7,7 @@
 <div class="page-header">
     <div class="page-title-group">
         <h1 class="page-title">Resource Management</h1>
-        <p class="page-subtitle">A clear overview of your inventory.</p>
-        <p style="margin-top: 4px; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em;">Smarter Stock. Simpler Management.</p>
+        <p class="page-subtitle">Your inventory at a glance.</p>
     </div>
     <div class="page-actions">
         <a href="/products/add" class="btn btn-primary">
@@ -18,14 +17,14 @@
             </svg>
             <span>Add Product</span>
         </a>
-        <a href="/stock" class="btn btn-secondary">
+        <a href="/stock?mode=in" class="btn btn-secondary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
                 <polyline points="19 12 12 19 5 12"></polyline>
             </svg>
             <span>Stock In</span>
         </a>
-        <a href="/stock" class="btn btn-secondary">
+        <a href="/stock?mode=out" class="btn btn-secondary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="19" x2="12" y2="5"></line>
                 <polyline points="5 12 12 5 19 12"></polyline>
@@ -122,21 +121,14 @@
             </div>
         </div>
         <div class="card-body">
-            {% if movement_stats %}
-                {% set max_movement = 1 %}
-                {% for d in movement_stats %}
-                    {% if d.stock_in > max_movement %}{% set max_movement = d.stock_in %}{% endif %}
-                    {% if d.stock_out > max_movement %}{% set max_movement = d.stock_out %}{% endif %}
-                {% endfor %}
+            {% if movement_stats.has_movement %}
                 <div class="movement-chart-container">
                     <div class="movement-bars-grid">
-                        {% for d in movement_stats %}
-                            {% set in_pct = (d.stock_in / max_movement * 100) if max_movement > 0 else 0 %}
-                            {% set out_pct = (d.stock_out / max_movement * 100) if max_movement > 0 else 0 %}
+                        {% for d in movement_stats.days %}
                             <div class="movement-day-col" title="{{ d.label }}: +{{ d.stock_in }} in, -{{ d.stock_out }} out">
                                 <div class="bars-pair">
-                                    <div class="bar-in" style="height: {{ [in_pct, 4]|max }}%;"></div>
-                                    <div class="bar-out" style="height: {{ [out_pct, 4]|max }}%;"></div>
+                                    {% if d.stock_in_percentage > 0 %}<div class="bar-in" style="height: {{ d.stock_in_percentage }}%;" title="Stock In: {{ d.stock_in }}"></div>{% endif %}
+                                    {% if d.stock_out_percentage > 0 %}<div class="bar-out" style="height: {{ d.stock_out_percentage }}%;" title="Stock Out: {{ d.stock_out }}"></div>{% endif %}
                                 </div>
                                 <span class="day-label">{{ d.day_name }}<br><small style="color: var(--text-muted); font-size: 0.65rem;">{{ d.label.split(' ')[0] }}</small></span>
                             </div>
@@ -233,61 +225,10 @@
                 </div>
             {% else %}
                 <div class="empty-state">
-                    <p class="empty-state-desc">No active products to calculate health distribution.</p>
+                    <p class="empty-state-desc">No inventory</p>
                 </div>
             {% endif %}
         </div>
-    </div>
-</div>
-
-<!-- Category Inventory Distribution -->
-<div class="card">
-    <div class="card-header">
-        <div class="card-title-group">
-            <h2 class="card-title">Category Stock Distribution</h2>
-        </div>
-        <span class="card-subtitle">Classification Breakdown</span>
-    </div>
-    <div class="card-body">
-        {% if category_data %}
-            {% set total_cat_qty = category_data|map(attribute='total_quantity')|sum %}
-            <div class="category-dist-grid">
-                {% for cat in category_data %}
-                    {% set cat_pct = (cat.total_quantity / total_cat_qty * 100) if total_cat_qty > 0 else 0 %}
-                    <div class="category-dist-card">
-                        <div class="category-dist-header">
-                            <div class="category-icon-box" style="background-color: var(--primary-blue-subtle); color: var(--primary-blue);">
-                                {% if cat.category == 'Electronics' %}
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
-                                {% elif cat.category == 'Grocery' %}
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
-                                {% elif cat.category == 'Stationery' %}
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
-                                {% elif cat.category == 'Clothing' %}
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"></path></svg>
-                                {% elif cat.category == 'Home & Living' %}
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                                {% else %}
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
-                                {% endif %}
-                            </div>
-                            <span class="category-name-text">{{ cat.category }}</span>
-                        </div>
-                        <div class="category-stats-row">
-                            <span>{{ cat.product_count }} SKUs</span>
-                            <span style="font-weight: 600; color: var(--text-primary);">{{ cat.total_quantity }} units</span>
-                        </div>
-                        <div class="category-progress-track">
-                            <div class="category-progress-fill" style="width: {{ cat_pct }}%; background-color: var(--primary-blue);"></div>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <div class="empty-state">
-                <p class="empty-state-desc">No category data recorded.</p>
-            </div>
-        {% endif %}
     </div>
 </div>
 

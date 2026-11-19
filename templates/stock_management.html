@@ -7,7 +7,7 @@
 <div class="page-header">
     <div class="page-title-group">
         <h1 class="page-title">Stock Management</h1>
-        <p class="page-subtitle">Record incoming stock receipts or issue outgoing customer fulfillments with atomic audit tracking.</p>
+        <p class="page-subtitle">Record incoming receipts and outgoing stock movements.</p>
     </div>
     <div class="page-actions">
         <a href="/transactions" class="btn btn-secondary">
@@ -61,14 +61,14 @@
         <div class="card-body">
             <!-- Segmented Control Switcher -->
             <div class="segmented-control-bar">
-                <button type="button" id="tab-stock-in" class="segmented-tab active-in">
+                <button type="button" id="tab-stock-in" class="segmented-tab {% if mode == 'in' %}active-in{% endif %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
                         <polyline points="19 12 12 19 5 12"></polyline>
                     </svg>
                     <span>Stock In (Receive Shipments)</span>
                 </button>
-                <button type="button" id="tab-stock-out" class="segmented-tab">
+                <button type="button" id="tab-stock-out" class="segmented-tab {% if mode == 'out' %}active-out{% endif %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                         <line x1="12" y1="19" x2="12" y2="5"></line>
                         <polyline points="5 12 12 5 19 12"></polyline>
@@ -78,7 +78,7 @@
             </div>
 
             <!-- Panel A: Stock In Form -->
-            <div id="panel-stock-in" class="stock-form-panel active">
+            <div id="panel-stock-in" class="stock-form-panel {% if mode == 'in' %}active{% endif %}">
                 <form method="POST" action="/stock/in" class="stock-form">
                     <div class="form-group">
                         <label class="form-label" for="stock-in-select">Select Product <span class="required">*</span></label>
@@ -116,7 +116,7 @@
             </div>
 
             <!-- Panel B: Stock Out Form -->
-            <div id="panel-stock-out" class="stock-form-panel">
+            <div id="panel-stock-out" class="stock-form-panel {% if mode == 'out' %}active{% endif %}">
                 <form method="POST" action="/stock/out" class="stock-form">
                     <div class="form-group">
                         <label class="form-label" for="stock-out-select">Select Product <span class="required">*</span></label>
@@ -192,7 +192,7 @@
                 </div>
                 <div class="preview-metric-item">
                     <span class="preview-metric-label" style="color: var(--primary-blue);">Operation Health</span>
-                    <span style="font-size: 0.8125rem; font-weight: 600; color: var(--primary-blue); margin-top: 4px;">Atomic Commit</span>
+                    <span style="font-size: 0.8125rem; font-weight: 600; color: var(--primary-blue); margin-top: 4px;">Projected balance</span>
                 </div>
             </div>
 
@@ -207,7 +207,7 @@
             </div>
 
             <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; border-top: 1px solid var(--border-color-subtle); padding-top: 12px;">
-                Selecting a product and entering a quantity updates the projected balance automatically. Stock Out operations exceeding available units will be blocked.
+                Select a product and quantity to preview the resulting balance.
             </div>
         </div>
     </div>

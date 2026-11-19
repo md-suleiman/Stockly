@@ -161,7 +161,7 @@
             <div class="preview-metric-box">
                 <div class="preview-metric-item">
                     <span class="preview-metric-label">Available Stock</span>
-                    <span id="preview-stock" class="preview-metric-val">{{ product.get('quantity', 0) }} units</span>
+                    <span id="preview-stock" class="preview-metric-val" data-quantity="{{ product.get('quantity', 0) }}">{{ product.get('quantity', 0) }} units</span>
                 </div>
                 <div class="preview-metric-item">
                     <span class="preview-metric-label">Reorder Level</span>

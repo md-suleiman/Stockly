@@ -10,7 +10,8 @@ Each Flask route is an event handler triggered by a browser request.
 
 import os
 import logging
-from flask import (Flask, render_template, request, redirect,
+import secrets
+from flask import (Flask, current_app, render_template, request, redirect,
                    url_for, flash, Response)
 from inventory_service import InventoryService
 from models import Product
@@ -23,10 +24,23 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 app = Flask(__name__)
 # Secure secret key with safe local dev fallback
-app.secret_key = os.environ.get('SECRET_KEY', 'stockly-dev-secret-key-fallback-2026')
+app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 
 # Create the shared service instance
 service = InventoryService()
+app.extensions['inventory_service'] = service
+
+
+def get_service():
+    """Resolve the injected service for the current Flask application."""
+    return current_app.extensions['inventory_service']
+
+
+def create_app(service_instance=None):
+    """Return the configured application with an optional service dependency."""
+    if service_instance is not None:
+        app.extensions['inventory_service'] = service_instance
+    return app
 
 # ---------------------------------------------------------------------------
 # Jinja2 custom filters & context processors
@@ -40,7 +54,7 @@ app.jinja_env.filters['stockstatus'] = format_stock_status
 def inject_global_context():
     """Inject global real-time inventory health and asset versioning into all templates."""
     try:
-        health_stats = service.get_inventory_health_stats()
+        health_stats = get_service().get_inventory_health_stats()
     except Exception:
         logger.exception('Unable to calculate inventory health for the shared layout')
         health_stats = {
@@ -48,7 +62,8 @@ def inject_global_context():
             'healthy_count': 0,
             'low_stock_count': 0,
             'out_of_stock_count': 0,
-            'health_percent': 100,
+            'health_percent': None,
+            'health_label': 'N/A',
             'attention_count': 0,
         }
     return {
@@ -67,18 +82,16 @@ def dashboard():
     Event-Driven: GET / triggers dashboard rendering.
     Calculates KPI metrics, 7-day movement data, and health breakdown from SQLite.
     """
-    stats = service.get_dashboard_stats()
-    low_stock = service.get_low_stock_products()
-    recent_txns = service.get_recent_transactions(limit=6)
-    category_data = service.get_category_breakdown()
-    health_stats = service.get_inventory_health_stats()
-    movement_stats = service.get_daily_movement_stats(days=7)
+    stats = get_service().get_dashboard_stats()
+    low_stock = get_service().get_low_stock_products()
+    recent_txns = get_service().get_recent_transactions(limit=6)
+    health_stats = get_service().get_inventory_health_stats()
+    movement_stats = get_service().get_daily_movement_stats(days=7)
 
     return render_template('dashboard.html',
                            stats=stats,
                            low_stock_products=low_stock,
                            recent_transactions=recent_txns,
-                           category_data=category_data,
                            health_stats=health_stats,
                            movement_stats=movement_stats)
 
@@ -96,7 +109,7 @@ def products():
     sort_by = request.args.get('sort', 'created_at')
     include_archived = request.args.get('archived', '') == '1'
 
-    product_list = service.search_products(
+    product_list = get_service().search_products(
         query=search_query,
         category=category_filter,
         status=status_filter,
@@ -125,7 +138,7 @@ def add_product():
             'quantity': request.form.get('quantity', '0'),
             'reorder_level': request.form.get('reorder_level', '0'),
         }
-        product_id, errors = service.add_product(data)
+        product_id, errors = get_service().add_product(data)
         if errors:
             return render_template('product_form.html',
                                    mode='add',
@@ -145,7 +158,7 @@ def add_product():
 @app.route('/products/edit/<int:product_id>', methods=['GET', 'POST'])
 def edit_product(product_id):
     """Edit an existing product's details (not quantity)."""
-    product = service.get_product(product_id)
+    product = get_service().get_product(product_id)
     if product is None:
         flash('Product not found.', 'error')
         return redirect(url_for('products'))
@@ -158,7 +171,7 @@ def edit_product(product_id):
             'price': request.form.get('price') or request.form.get('unit_price', ''),
             'reorder_level': request.form.get('reorder_level', '0'),
         }
-        success, errors = service.update_product(product_id, data)
+        success, errors = get_service().update_product(product_id, data)
         if not success:
             return render_template('product_form.html',
                                    mode='edit',
@@ -180,7 +193,7 @@ def edit_product(product_id):
 @app.route('/products/archive/<int:product_id>', methods=['POST'])
 def archive_product(product_id):
     """Archive (soft-delete) a product."""
-    success, error = service.archive_product(product_id)
+    success, error = get_service().archive_product(product_id)
     if success:
         flash('Product archived successfully.', 'success')
     else:
@@ -195,9 +208,13 @@ def archive_product(product_id):
 @app.route('/stock')
 def stock_management():
     """Render the Stock Management page."""
-    active_products = service.get_all_products(include_archived=False)
+    active_products = get_service().get_all_products(include_archived=False)
+    mode = request.args.get('mode', 'in')
+    if mode not in ('in', 'out'):
+        mode = 'in'
     return render_template('stock_management.html',
                            products=active_products,
+                           mode=mode,
                            success_message=None,
                            error_message=None)
 
@@ -212,16 +229,18 @@ def stock_in():
     reason = request.form.get('reason', '')
 
     if not product_id_raw or not product_id_raw.isdigit() or int(product_id_raw) <= 0:
-        active_products = service.get_all_products(include_archived=False)
+        active_products = get_service().get_all_products(include_archived=False)
         return render_template('stock_management.html',
                                products=active_products,
+                               mode='in',
                                success_message=None,
                                error_message='Please select a valid product.')
 
-    success, message, new_qty = service.stock_in(int(product_id_raw), quantity, reason)
-    active_products = service.get_all_products(include_archived=False)
+    success, message, new_qty = get_service().stock_in(int(product_id_raw), quantity, reason)
+    active_products = get_service().get_all_products(include_archived=False)
     return render_template('stock_management.html',
                            products=active_products,
+                           mode='in',
                            success_message=message if success else None,
                            error_message=message if not success else None)
 
@@ -236,16 +255,18 @@ def stock_out():
     reason = request.form.get('reason', '')
 
     if not product_id_raw or not product_id_raw.isdigit() or int(product_id_raw) <= 0:
-        active_products = service.get_all_products(include_archived=False)
+        active_products = get_service().get_all_products(include_archived=False)
         return render_template('stock_management.html',
                                products=active_products,
+                               mode='out',
                                success_message=None,
                                error_message='Please select a valid product.')
 
-    success, message, new_qty = service.stock_out(int(product_id_raw), quantity, reason)
-    active_products = service.get_all_products(include_archived=False)
+    success, message, new_qty = get_service().stock_out(int(product_id_raw), quantity, reason)
+    active_products = get_service().get_all_products(include_archived=False)
     return render_template('stock_management.html',
                            products=active_products,
+                           mode='out',
                            success_message=message if success else None,
                            error_message=message if not success else None)
 
@@ -257,14 +278,20 @@ def stock_out():
 @app.route('/transactions')
 def transactions():
     """Display transaction history with filters."""
-    product_id = request.args.get('product_id', '')
+    product_id = request.args.get('product_id', '').strip()
     txn_type = request.args.get('type', '')
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     search = request.args.get('search', '').strip()
     sort_order = request.args.get('sort', 'DESC')
+    if product_id and (not product_id.isdigit() or int(product_id) <= 0):
+        product_id = ''
+        flash('Invalid product filter ignored.', 'error')
+    if txn_type not in ('', 'STOCK_IN', 'STOCK_OUT', 'OPENING'):
+        txn_type = ''
+        flash('Invalid movement filter ignored.', 'error')
 
-    txn_list = service.get_transactions(
+    txn_list = get_service().get_transactions(
         product_id=product_id if product_id else None,
         transaction_type=txn_type if txn_type else None,
         date_from=date_from if date_from else None,
@@ -272,7 +299,7 @@ def transactions():
         search=search,
         sort_order=sort_order,
     )
-    all_products = service.get_all_products(include_archived=True)
+    all_products = get_service().get_all_products(include_archived=True)
     return render_template('transactions.html',
                            transactions=txn_list,
                            products=all_products,
@@ -293,10 +320,10 @@ def transactions():
 @app.route('/reports')
 def reports():
     """Render the Reports page with real data."""
-    low_stock = service.get_low_stock_products()
-    out_of_stock = service.get_out_of_stock_products()
-    summary = service.get_inventory_summary()
-    category_breakdown = service.get_category_breakdown()
+    low_stock = get_service().get_low_stock_products()
+    out_of_stock = get_service().get_out_of_stock_products()
+    summary = get_service().get_inventory_summary()
+    category_breakdown = get_service().get_category_breakdown()
     return render_template('reports.html',
                            low_stock=low_stock,
                            out_of_stock=out_of_stock,
@@ -307,7 +334,7 @@ def reports():
 @app.route('/reports/export/products')
 def export_products():
     """Download products as CSV."""
-    csv_data = service.export_products_csv()
+    csv_data = get_service().export_products_csv()
     return Response(
         csv_data,
         mimetype='text/csv',
@@ -318,7 +345,7 @@ def export_products():
 @app.route('/reports/export/transactions')
 def export_transactions():
     """Download transactions as CSV."""
-    csv_data = service.export_transactions_csv()
+    csv_data = get_service().export_transactions_csv()
     return Response(
         csv_data,
         mimetype='text/csv',
@@ -337,11 +364,10 @@ def settings():
         'name': 'Stockly',
         'tagline': 'Smarter Stock. Simpler Management.',
         'edition': 'Enterprise Edition',
-        'currency': 'Indian Rupees (₹)',
+        'currency': 'INR (₹)',
         'currency_symbol': '₹',
         'categories': Product.CATEGORIES,
-        'domain': 'Inventory & Resource Management',
-        'target_users': 'Retail store owners, supply chain operators & warehouse staff',
+        'description': 'A local-first inventory management workspace for tracking products, stock movements, and reports.',
         'version': '2.2.0',
     }
     return render_template('settings.html', app_info=app_info)

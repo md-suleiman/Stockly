@@ -1,138 +1,59 @@
 {% extends 'base.html' %}
 
-{% block title %}System Settings &bull; Configuration — Stockly{% endblock %}
+{% block title %}Settings — Stockly{% endblock %}
 
 {% block content %}
-<!-- Page Header -->
 <div class="page-header">
     <div class="page-title-group">
-        <h1 class="page-title">Settings &amp; Configuration</h1>
-        <p class="page-subtitle">System metadata, financial currency standards, and catalog classification rules.</p>
+        <h1 class="page-title">Settings</h1>
+        <p class="page-subtitle">Read-only workspace preferences and operating rules.</p>
     </div>
 </div>
 
-<div class="grid grid-2">
-    <!-- Application Information Card -->
-    <div class="settings-group-card">
+<div class="settings-grid">
+    <section class="settings-group-card">
         <div class="card-header">
             <div class="card-title-group">
-                <h2 class="card-title">System Information</h2>
-                <span class="card-subtitle">Platform runtime parameters</span>
+                <h2 class="card-title">Preferences</h2>
+                <span class="card-subtitle">Current display and catalog defaults</span>
             </div>
-            <span class="badge badge-success">
-                <span class="badge-dot"></span>
-                <span>Active</span>
-            </span>
+            <span class="badge badge-primary">Read only</span>
         </div>
         <div class="card-body no-padding">
-            <div class="settings-row">
-                <span class="settings-label">Platform Name</span>
-                <span class="settings-value" style="font-weight: 600;">{{ app_info.name }}</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">System Tagline</span>
-                <span class="settings-value">{{ app_info.tagline }}</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Release Version</span>
-                <span class="settings-value" style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem;">v{{ app_info.version }}</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Application Domain</span>
-                <span class="settings-value">{{ app_info.domain }}</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Primary Audience</span>
-                <span class="settings-value">{{ app_info.target_users }}</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Storage Architecture</span>
-                <span class="settings-value" style="font-size: 0.8125rem;">ACID SQLite3 (Foreign Keys Enabled)</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Design Paradigm</span>
-                <span class="settings-value" style="font-size: 0.8125rem;">Layered OOP Service &bull; Pure Utils &bull; Event UI</span>
-            </div>
+            <div class="settings-row"><span class="settings-label">Currency</span><span class="settings-value">{{ app_info.currency }}</span></div>
+            <div class="settings-row"><span class="settings-label">Date and time</span><span class="settings-value">Local time, DD Mon YYYY, 12-hour clock</span></div>
+            <div class="settings-row"><span class="settings-label">Product categories</span><span class="settings-value">{{ app_info.categories|join(', ') }}</span></div>
         </div>
-    </div>
+    </section>
 
-    <!-- Currency & Financial Standards -->
-    <div class="settings-group-card">
+    <section class="settings-group-card">
         <div class="card-header">
             <div class="card-title-group">
-                <h2 class="card-title">Localization &amp; Currency</h2>
-                <span class="card-subtitle">Accounting &amp; monetary formatting standards</span>
+                <h2 class="card-title">Inventory Rules</h2>
+                <span class="card-subtitle">Applied consistently across Stockly</span>
+            </div>
+        </div>
+        <div class="card-body settings-rules">
+            <p><strong>Healthy:</strong> quantity &gt; reorder level</p>
+            <p><strong>Low stock:</strong> 0 &lt; quantity &le; reorder level</p>
+            <p><strong>Out of stock:</strong> quantity = 0</p>
+            <p><strong>Stock out:</strong> requests cannot exceed available quantity.</p>
+        </div>
+    </section>
+
+    <section class="settings-group-card">
+        <div class="card-header">
+            <div class="card-title-group">
+                <h2 class="card-title">Application Information</h2>
+                <span class="card-subtitle">Local deployment details</span>
             </div>
         </div>
         <div class="card-body no-padding">
-            <div class="settings-row">
-                <span class="settings-label">Base Currency</span>
-                <span class="settings-value">{{ app_info.currency }}</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Currency Symbol</span>
-                <span class="settings-value" style="font-size: 1.1rem; font-weight: 700; color: var(--primary-blue);">{{ app_info.currency_symbol }}</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Number Formatting</span>
-                <span class="settings-value">Indian Rupee Grouping (₹0,00,000.00)</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Valuation Precision</span>
-                <span class="settings-value">2 Decimal Places (Strict Rounding)</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Data Export Format</span>
-                <span class="settings-value">RFC 4180 Standard CSV</span>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">Timezone &amp; Timestamps</span>
-                <span class="settings-value">UTC ISO 8601 with Localized Formatting</span>
-            </div>
+            <div class="settings-row"><span class="settings-label">Application</span><span class="settings-value">{{ app_info.name }}</span></div>
+            <div class="settings-row"><span class="settings-label">Version</span><span class="settings-value">v{{ app_info.version }}</span></div>
+            <div class="settings-row"><span class="settings-label">Storage</span><span class="settings-value">Local SQLite database</span></div>
+            <div class="settings-row"><span class="settings-label">Description</span><span class="settings-value">{{ app_info.description }}</span></div>
         </div>
-    </div>
-</div>
-
-<div class="grid grid-2" style="margin-top: 24px;">
-    <!-- Product Categories List -->
-    <div class="settings-group-card">
-        <div class="card-header">
-            <div class="card-title-group">
-                <h2 class="card-title">Product Categories</h2>
-                <span class="card-subtitle">{{ app_info.categories|length }} catalog classifications</span>
-            </div>
-        </div>
-        <div class="card-body">
-            <p style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5;">
-                Configured taxonomy for product categorization, inventory reporting, and analytical distribution metrics.
-            </p>
-            <div class="category-pill-grid">
-                {% for cat in app_info.categories %}
-                    <span class="category-pill">{{ cat }}</span>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Reorder Level Operational Rules -->
-    <div class="settings-group-card">
-        <div class="card-header">
-            <div class="card-title-group">
-                <h2 class="card-title">Operational Threshold Rules</h2>
-                <span class="card-subtitle">Automated inventory logic</span>
-            </div>
-        </div>
-        <div class="card-body" style="font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6;">
-            <p style="margin-bottom: 12px;">
-                <strong style="color: var(--text-primary);">Low Stock Condition:</strong> When on-hand inventory drops to or below a product's configured reorder level (<code style="background-color: var(--surface-secondary); padding: 2px 6px; border-radius: 4px; font-size: 0.8125rem;">quantity &le; reorder_level</code>), Stockly automatically flags the item in the Dashboard Alerts panel and Reports view.
-            </p>
-            <p style="margin-bottom: 12px;">
-                <strong style="color: var(--text-primary);">Depletion Prevention:</strong> Reaching exactly <code style="background-color: var(--surface-secondary); padding: 2px 6px; border-radius: 4px; font-size: 0.8125rem;">0 units</code> triggers an urgent Out of Stock status. The Stock Out console automatically blocks fulfillment requests that exceed available inventory.
-            </p>
-            <p>
-                <strong style="color: var(--text-primary);">Audit Integrity:</strong> Stock movements are stored in append-only transaction logs. Product archiving performs a soft-delete, ensuring audit trails remain completely immutable.
-            </p>
-        </div>
-    </div>
+    </section>
 </div>
 {% endblock %}

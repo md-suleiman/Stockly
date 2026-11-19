@@ -188,17 +188,20 @@ class InventoryService:
         Increase stock. Atomic: quantity update + transaction record in one commit.
         Returns (success, message, updated_quantity).
         """
-        product = self.get_product(product_id)
-        quantity, errors = validate_stock_movement(product, quantity_str, 'STOCK_IN')
-        if errors:
-            return False, errors[0], None
-
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        stock_before = product.quantity
-        stock_after = stock_before + quantity
-
         conn = self.db.get_connection()
         try:
+            conn.execute('BEGIN IMMEDIATE')
+            row = conn.execute(
+                'SELECT * FROM products WHERE product_id = ?', (product_id,)
+            ).fetchone()
+            product = Product.from_row(row)
+            quantity, errors = validate_stock_movement(product, quantity_str, 'STOCK_IN')
+            if errors:
+                conn.rollback()
+                return False, errors[0], None
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            stock_before = product.quantity
+            stock_after = stock_before + quantity
             conn.execute(
                 'UPDATE products SET quantity = ?, updated_at = ? '
                 'WHERE product_id = ?',
@@ -226,17 +229,20 @@ class InventoryService:
         Decrease stock. Atomic: quantity update + transaction record in one commit.
         Returns (success, message, updated_quantity).
         """
-        product = self.get_product(product_id)
-        quantity, errors = validate_stock_movement(product, quantity_str, 'STOCK_OUT')
-        if errors:
-            return False, errors[0], None
-
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        stock_before = product.quantity
-        stock_after = stock_before - quantity
-
         conn = self.db.get_connection()
         try:
+            conn.execute('BEGIN IMMEDIATE')
+            row = conn.execute(
+                'SELECT * FROM products WHERE product_id = ?', (product_id,)
+            ).fetchone()
+            product = Product.from_row(row)
+            quantity, errors = validate_stock_movement(product, quantity_str, 'STOCK_OUT')
+            if errors:
+                conn.rollback()
+                return False, errors[0], None
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            stock_before = product.quantity
+            stock_after = stock_before - quantity
             conn.execute(
                 'UPDATE products SET quantity = ?, updated_at = ? '
                 'WHERE product_id = ?',
@@ -477,7 +483,8 @@ class InventoryService:
                 'healthy_count': 0,
                 'low_stock_count': 0,
                 'out_of_stock_count': 0,
-                'health_percent': 100,
+                'health_percent': None,
+                'health_label': 'N/A',
                 'attention_count': 0,
             }
         healthy_count = sum(1 for p in products if p.quantity > p.reorder_level)
@@ -490,6 +497,7 @@ class InventoryService:
             'low_stock_count': low_stock_count,
             'out_of_stock_count': out_of_stock_count,
             'health_percent': health_percent,
+            'health_label': f'{health_percent}%',
             'attention_count': low_stock_count + out_of_stock_count,
         }
 
@@ -535,7 +543,24 @@ class InventoryService:
                     'stock_in': int(stock_in or 0),
                     'stock_out': int(stock_out or 0),
                 })
-            return result
+            max_movement = max(
+                (max(item['stock_in'], item['stock_out']) for item in result),
+                default=0,
+            )
+            for item in result:
+                item['stock_in_percentage'] = (
+                    round(item['stock_in'] / max_movement * 100, 2)
+                    if max_movement else 0
+                )
+                item['stock_out_percentage'] = (
+                    round(item['stock_out'] / max_movement * 100, 2)
+                    if max_movement else 0
+                )
+            return {
+                'days': result,
+                'max_movement': max_movement,
+                'has_movement': max_movement > 0,
+            }
         finally:
             conn.close()
 
