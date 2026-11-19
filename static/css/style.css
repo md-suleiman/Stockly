@@ -210,12 +210,6 @@ img, svg {
     gap: 24px;
 }
 
-.sidebar-navigation {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-}
-
 .sidebar-settings {
     padding: 14px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);

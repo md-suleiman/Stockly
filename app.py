@@ -11,6 +11,7 @@ Each Flask route is an event handler triggered by a browser request.
 import os
 import logging
 import secrets
+from datetime import datetime
 from flask import (Flask, Blueprint, current_app, render_template, request, redirect,
                    url_for, flash, Response)
 from inventory_service import InventoryService

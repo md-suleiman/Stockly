@@ -12,7 +12,7 @@ import os
 import tempfile
 import unittest
 import sqlite3
-from datetime import date, timedelta
+from datetime import timedelta
 import app as app_module
 
 from database import Database
@@ -29,6 +29,7 @@ from utils import (
     format_datetime
 )
 from seed import seed_database
+from clock import today
 
 
 class TestStocklyService(unittest.TestCase):
@@ -485,6 +486,26 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'Transaction History', response.data)
 
+    def test_transaction_date_filters_accept_valid_dates(self):
+        current = today().isoformat()
+        response = self.client.get(
+            f'/transactions?date_from={current}&date_to={current}'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(current.encode(), response.data)
+
+    def test_transaction_date_filters_reject_invalid_dates(self):
+        response = self.client.get('/transactions?date_from=not-a-date')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Invalid date from filter ignored.', response.data)
+
+    def test_transaction_date_filters_reject_reversed_range(self):
+        response = self.client.get(
+            f'/transactions?date_from={today().isoformat()}&date_to=2000-01-01'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Date From cannot be later than Date To.', response.data)
+
     def test_reports_route(self):
         response = self.client.get('/reports')
         self.assertEqual(response.status_code, 200)
@@ -518,6 +539,58 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
             self._route_product_data(sku='NAN-PRICE', price='NaN')
         )
         self.assertTrue(any('finite' in error for error in errors))
+
+    def test_legacy_seed_fingerprint_is_required(self):
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        try:
+            db = Database(path)
+            db.init_db()
+            conn = db.get_connection()
+            conn.execute(
+                '''INSERT INTO products
+                   (sku, name, category, price, quantity, reorder_level,
+                    is_active, created_at, updated_at)
+                   VALUES ('DEMO-ELE-WMOUSE', 'User Mouse', 'Electronics',
+                           599, 45, 10, 1, '2026-11-19 08:00:00',
+                           '2026-11-19 08:00:00')'''
+            )
+            conn.commit()
+            conn.close()
+            with self.assertRaisesRegex(RuntimeError, 'ownership is ambiguous'):
+                seed_database(path)
+        finally:
+            os.unlink(path)
+
+    def test_exact_legacy_seed_fingerprint_can_migrate(self):
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        try:
+            db = Database(path)
+            db.init_db()
+            conn = db.get_connection()
+            conn.execute(
+                '''INSERT INTO products
+                   (sku, name, category, price, quantity, reorder_level,
+                    is_active, created_at, updated_at)
+                   VALUES ('DEMO-ELE-WMOUSE', 'Demo Wireless Mouse',
+                           'Electronics', 599, 45, 10, 1,
+                           '2026-11-19 08:00:00', '2026-11-19 08:00:00')'''
+            )
+            conn.commit()
+            conn.close()
+            result = seed_database(path)
+            self.assertEqual(result['products_added'], 9)
+            conn = sqlite3.connect(path)
+            self.assertEqual(
+                conn.execute(
+                    "SELECT COUNT(*) FROM products WHERE sku = 'DEMO-ELE-WMOUSE'"
+                ).fetchone()[0],
+                0,
+            )
+            conn.close()
+        finally:
+            os.unlink(path)
 
     def test_restore_product_route(self):
         product_id, errors = self.route_service.add_product(
@@ -693,7 +766,7 @@ class TestHistoricalSeed(unittest.TestCase):
             for txn_date, txn_type, quantity in rows:
                 by_day.setdefault(txn_date, {})[txn_type] = quantity
             self.assertEqual(set(by_day), {
-                (date.today() - timedelta(days=i)).isoformat() for i in range(7)
+                (today() - timedelta(days=i)).isoformat() for i in range(7)
             })
             self.assertTrue(all(
                 set(day) == {'STOCK_IN', 'STOCK_OUT'} for day in by_day.values()

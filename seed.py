@@ -15,6 +15,14 @@ OLD_DEMO_SKUS = {
     'DEMO-ELE-WMOUSE', 'DEMO-ELE-USBC1M', 'DEMO-STA-NB200',
     'DEMO-HOM-WTRBOTL', 'DEMO-CLO-BKPACK', 'DEMO-GRO-RICE5K',
 }
+OLD_DEMO_FINGERPRINTS = {
+    'DEMO-ELE-WMOUSE': ('Demo Wireless Mouse', 'Electronics', 599.00, 45, 10),
+    'DEMO-ELE-USBC1M': ('Demo USB-C Cable (1m)', 'Electronics', 199.00, 120, 20),
+    'DEMO-STA-NB200': ('Demo Spiral Notebook', 'Stationery', 85.00, 200, 50),
+    'DEMO-HOM-WTRBOTL': ('Demo Water Bottle', 'Home & Living', 450.00, 18, 10),
+    'DEMO-CLO-BKPACK': ('Demo Canvas Backpack', 'Clothing', 1299.00, 25, 8),
+    'DEMO-GRO-RICE5K': ('Demo Basmati Rice', 'Grocery', 375.00, 60, 20),
+}
 
 PRODUCTS = [
     ('Wireless Mouse', 'ELE-MOU-014', 'Electronics', 599.00, 18, 12),
@@ -102,6 +110,16 @@ def _old_seed_ids(conn):
     for row in rows:
         if row['sku'] not in OLD_DEMO_SKUS:
             continue
+        fingerprint = OLD_DEMO_FINGERPRINTS[row['sku']]
+        product = conn.execute(
+            'SELECT name, category, price, quantity, reorder_level, is_active '
+            'FROM products WHERE product_id = ?',
+            (row['product_id'],),
+        ).fetchone()
+        if tuple(product) != (*fingerprint, 1):
+            raise RuntimeError(
+                f"Cannot migrate {row['sku']}: product ownership is ambiguous."
+            )
         txns = conn.execute(
             'SELECT reason FROM stock_transactions WHERE product_id = ?',
             (row['product_id'],),

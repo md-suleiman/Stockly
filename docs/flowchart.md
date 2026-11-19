@@ -18,10 +18,10 @@ flowchart TD
     ClientValidation -- Yes --> SubmitHTTP[POST /stock/in Form Submission]
     
     SubmitHTTP --> ServerValidation{Server Validation:<br/>Product ID provided?<br/>Quantity integer > 0?}
-    ServerValidation -- No --> ReturnValidationError[Render Stock Management Page with Error] --> EndFail
+    ServerValidation -- No --> FlashValidationError[Flash error message] --> RedirectIn[Redirect to /stock?mode=in] --> EndFail
     
     ServerValidation -- Yes --> CheckProduct{Product Exists and Active?}
-    CheckProduct -- No --> ReturnInactiveError[Return Product Inactive or Not Found Error] --> EndFail
+    CheckProduct -- No --> FlashInactiveError[Flash inactive or not found error] --> RedirectIn
     
     CheckProduct -- Yes --> BeginTxn[Begin SQLite Database Transaction]
     BeginTxn --> CalcStock[Calculate: stock_after = stock_before + quantity]
@@ -29,8 +29,8 @@ flowchart TD
     UpdateProduct --> InsertTxn[INSERT INTO stock_transactions: type=STOCK_IN]
     
     InsertTxn --> CommitTxn{Commit Database Transaction}
-    CommitTxn -- Success --> ReturnSuccess[Display Success Notification with New Stock Level] --> EndSuccess([Operation Complete])
-    CommitTxn -- Failure --> RollbackTxn[Rollback Database Transaction] --> ReturnDBError[Display Database Error] --> EndFail
+    CommitTxn -- Success --> FlashSuccess[Flash success notification] --> RedirectInSuccess[Redirect to /stock?mode=in] --> EndSuccess([Operation Complete])
+    CommitTxn -- Failure --> RollbackTxn[Rollback Database Transaction] --> FlashDBError[Flash database error] --> RedirectIn
 ```
 
 ---
@@ -50,13 +50,13 @@ flowchart TD
     ClientValidation -- Yes --> SubmitHTTP[POST /stock/out Form Submission]
     
     SubmitHTTP --> ServerValidation{Server Validation:<br/>Product ID provided?<br/>Quantity integer > 0?}
-    ServerValidation -- No --> ReturnValidationError[Render Stock Management Page with Error] --> EndFail
+    ServerValidation -- No --> FlashValidationError[Flash error message] --> RedirectOut[Redirect to /stock?mode=out] --> EndFail
     
     ServerValidation -- Yes --> CheckProduct{Product Exists and Active?}
-    CheckProduct -- No --> ReturnInactiveError[Return Product Inactive or Not Found Error] --> EndFail
+    CheckProduct -- No --> FlashInactiveError[Flash inactive or not found error] --> RedirectOut
     
     CheckProduct -- Yes --> CheckStockAvailability{Requested Quantity <= Current Quantity?}
-    CheckStockAvailability -- No --> ReturnInsufficientError[Return Error: Insufficient Available Stock] --> EndFail
+    CheckStockAvailability -- No --> FlashInsufficientError[Flash insufficient-stock error] --> RedirectOut
     
     CheckStockAvailability -- Yes --> BeginTxn[Begin SQLite Database Transaction]
     BeginTxn --> CalcStock[Calculate: stock_after = stock_before - quantity]
@@ -64,8 +64,8 @@ flowchart TD
     UpdateProduct --> InsertTxn[INSERT INTO stock_transactions: type=STOCK_OUT]
     
     InsertTxn --> CommitTxn{Commit Database Transaction}
-    CommitTxn -- Success --> ReturnSuccess[Display Success Notification with New Stock Level] --> EndSuccess([Operation Complete])
-    CommitTxn -- Failure --> RollbackTxn[Rollback Database Transaction] --> ReturnDBError[Display Database Error] --> EndFail
+    CommitTxn -- Success --> FlashSuccess[Flash success notification] --> RedirectOutSuccess[Redirect to /stock?mode=out] --> EndSuccess([Operation Complete])
+    CommitTxn -- Failure --> RollbackTxn[Rollback Database Transaction] --> FlashDBError[Flash database error] --> RedirectOut
 ```
 
 ---
@@ -97,4 +97,3 @@ flowchart TD
     
     CommitProduct --> RedirectProducts[Flash Success & Redirect to /products] --> EndSuccess([Product Created])
 ```
-

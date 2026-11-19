@@ -258,20 +258,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const catVal = formCategorySelect ? formCategorySelect.value : 'General';
         const priceVal = formPriceInput && !isNaN(parseFloat(formPriceInput.value)) ? parseFloat(formPriceInput.value).toFixed(2) : '0.00';
         const existingQty = Number(previewStock && previewStock.dataset.quantity);
-        const qtyVal = formQtyInput && !isNaN(parseInt(formQtyInput.value, 10))
-            ? parseInt(formQtyInput.value, 10)
-            : (!isNaN(existingQty) ? existingQty : 0);
-        const reorderVal = formReorderInput && !isNaN(parseInt(formReorderInput.value, 10)) ? parseInt(formReorderInput.value, 10) : 10;
+        const qtyText = formQtyInput ? formQtyInput.value.trim() : '';
+        const reorderText = formReorderInput ? formReorderInput.value.trim() : '';
+        const qtyValid = /^\d+$/.test(qtyText);
+        const reorderValid = /^\d+$/.test(reorderText);
+        const qtyVal = qtyValid ? Number(qtyText) : (!isNaN(existingQty) ? existingQty : 0);
+        const reorderVal = reorderValid ? Number(reorderText) : 10;
 
         previewName.textContent = nameVal;
         previewSku.textContent = skuVal;
         if (previewCategory) previewCategory.textContent = catVal;
         if (previewPrice) previewPrice.textContent = `₹${Number(priceVal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-        if (previewStock) previewStock.textContent = `${qtyVal} units`;
-        if (previewReorder) previewReorder.textContent = `${reorderVal} units`;
+        if (previewStock) previewStock.textContent = qtyValid ? `${qtyVal} units` : 'Invalid quantity';
+        if (previewReorder) previewReorder.textContent = reorderValid ? `${reorderVal} units` : 'Invalid level';
 
         if (previewStatus) {
-            if (qtyVal === 0) {
+            if (!qtyValid || !reorderValid) {
+                previewStatus.className = 'badge badge-danger';
+                previewStatus.textContent = 'Invalid input';
+            } else if (qtyVal === 0) {
                 previewStatus.className = 'badge badge-danger';
                 previewStatus.textContent = 'Out of Stock';
             } else if (qtyVal <= reorderVal) {
