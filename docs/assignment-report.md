@@ -88,7 +88,7 @@ python -m unittest tests/test_inventory.py -v
 python -m compileall -q .
 ```
 
-The final audited run executed 52 tests with 0 failures and 0 errors. Tests use
+The final audited run executed 54 tests with 0 failures and 0 errors. Tests use
 isolated temporary SQLite databases for application behavior and direct database
 assertions for ledger, filters, exports, and seed safety.
 

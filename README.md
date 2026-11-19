@@ -13,7 +13,10 @@
 
 ## 📋 Overview
 
-**Stockly** is a polished, local-first, browser-based inventory and resource management application designed for retail business owners and inventory teams. Built cleanly with Python, Flask, SQLite, and vanilla frontend technologies (HTML5, CSS3, JavaScript), Stockly avoids bulky external dependencies while delivering an elegant, Linear- and Stripe-inspired enterprise SaaS management dashboard.
+**Stockly** is a local-first, browser-based inventory management workspace for
+retail business owners and inventory teams. Built with Python, Flask, SQLite,
+and vanilla frontend technologies (HTML5, CSS3, JavaScript), it keeps data and
+operation within the local workspace.
 
 Stockly directly demonstrates core software engineering and programming paradigms:
 - **Object-Oriented Programming (OOP):** Rich domain entities (`Product`, `StockTransaction`), encapsulation of SQLite connections via `Database`, and a service layer architecture (`InventoryService`) with atomic transactions.
@@ -22,9 +25,9 @@ Stockly directly demonstrates core software engineering and programming paradigm
 
 ---
 
-## ✨ Key Capabilities & SaaS Redesign Highlights
+## ✨ Key Capabilities
 
-- **📊 Enterprise Resource Management Dashboard:**
+- **📊 Inventory Dashboard:**
   - **4 Unified KPI Cards:** Total Products, Total Stock Units, Low Stock Alerts, and Total Inventory Value (₹), styled with clean white surfaces, subtle borders, and dedicated icon containers.
   - **7-Day Stock Movement Visualization:** Pure CSS responsive grouped bar chart comparing daily Stock In (receipts) vs. Stock Out (issues) based on verified audit records.
   - **Inventory Health Donut Gauge:** Inline SVG proportional donut visualization tracking Healthy, Low Stock, and Out of Stock inventory percentages.
@@ -55,7 +58,7 @@ Stockly directly demonstrates core software engineering and programming paradigm
   - Zero-stock depletion table and low-stock reorder exception lists with one-click restock actions.
   - **Standardized CSV Exports:** Generates fully RFC 4180-compliant CSV files for both products and transaction logs using Python's built-in `csv.writer` with proper quoting and escaping.
 
-- **⚙️ Enterprise Settings & Configuration:**
+- **⚙️ Settings & Configuration:**
   - System metadata, runtime parameters, Indian Rupee monetary formatting standards, and catalog taxonomy.
   - Documentation of automated low-stock and depletion threshold logic.
 
@@ -65,11 +68,11 @@ Stockly directly demonstrates core software engineering and programming paradigm
 
 | Layer | Technology | Details |
 |---|---|---|
-| **Frontend** | HTML5, CSS3, Vanilla JS | Custom modern SaaS design system (1,700+ lines of CSS), CSS Grid/Flexbox, SVG line icons, zero external CDN dependencies |
+| **Frontend** | HTML5, CSS3, Vanilla JS | Custom responsive design system (1,700+ lines of CSS), CSS Grid/Flexbox, SVG line icons, zero external CDN dependencies |
 | **Templates** | Jinja2 | Reusable master layout (`base.html`), modular page templates, custom formatting filters |
 | **Backend** | Python 3 (Flask) | Lightweight WSGI web framework, RESTful routing, modular service architecture |
 | **Database** | SQLite3 | Embedded ACID-compliant database with foreign key enforcement and parameterized SQL queries |
-| **Testing** | `unittest` | 52 automated unit and HTTP integration test cases |
+| **Testing** | `unittest` | 54 automated unit and HTTP integration test cases |
 
 ---
 
@@ -108,7 +111,7 @@ Stockly/
 │       └── app.js              # Event-driven UI listeners (validation, debouncing, tab console)
 │
 ├── tests/
-│   └── test_inventory.py       # 52 automated unit and HTTP integration test cases
+│   └── test_inventory.py       # 54 automated unit and HTTP integration test cases
 │
 └── docs/
     ├── architecture.md         # Multi-tiered architecture and paradigm mapping
@@ -125,7 +128,7 @@ unsecured public deployment.
 ## 🚀 Installation & Setup
 
 ### Prerequisites
-- Python 3.8 or newer (tested on Python 3.10+)
+- Python 3.9 or newer (tested on Python 3.10+)
 - `pip` package manager
 
 ### 1. Clone or Open the Workspace
@@ -188,7 +191,7 @@ python -m unittest discover -v
 python -m unittest tests/test_inventory.py -v
 ```
 
-All 52 automated tests execute against isolated temporary SQLite databases, verifying:
+All 54 automated tests execute against isolated temporary SQLite databases, verifying:
 - Product creation, duplicate SKU rejection, price validation, and editing
 - Soft-deletion (archiving) and preservation of historical records
 - Atomic Stock In and Stock Out movements

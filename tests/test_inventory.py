@@ -473,6 +473,41 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
         self.assertIn(b'Resource Management', response.data)
         self.assertIn(b'Your inventory at a glance.', response.data)
 
+    def test_page_titles_use_standard_format(self):
+        routes_and_titles = [
+            ('/', 'Dashboard | Stockly'),
+            ('/products', 'Products | Stockly'),
+            ('/products/add', 'Add Product | Stockly'),
+            ('/stock', 'Stock Management | Stockly'),
+            ('/transactions', 'Transactions | Stockly'),
+            ('/reports', 'Reports | Stockly'),
+            ('/settings', 'Settings | Stockly'),
+        ]
+        product_id, errors = self.route_service.add_product(
+            self._route_product_data(sku='TITLE-TEST-1')
+        )
+        self.assertEqual(errors, [])
+        routes_and_titles.append(
+            (f'/products/edit/{product_id}', 'Edit Product | Stockly')
+        )
+        for route, title in routes_and_titles:
+            with self.subTest(route=route):
+                response = self.client.get(route)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(f'<title>{title}</title>'.encode(), response.data)
+
+    def test_pages_include_shared_favicon_link(self):
+        for route in ('/', '/products', '/stock', '/transactions', '/reports', '/settings'):
+            with self.subTest(route=route):
+                response = self.client.get(route)
+                self.assertIn(
+                    b'<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">',
+                    response.data,
+                )
+        favicon = self.client.get('/static/favicon.svg')
+        self.assertEqual(favicon.status_code, 200)
+        self.assertIn(b'<svg', favicon.data)
+
     def test_products_route(self):
         response = self.client.get('/products')
         self.assertEqual(response.status_code, 200)

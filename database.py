@@ -98,9 +98,5 @@ class Database:
         finally:
             conn.close()
 
-    def close(self):
-        """Placeholder for any future resource cleanup."""
-        pass
-
     def __repr__(self):
         return f"Database(path='{self.db_path}')"
