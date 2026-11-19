@@ -28,7 +28,6 @@ Stockly directly demonstrates core software engineering and programming paradigm
   - **4 Unified KPI Cards:** Total Products, Total Stock Units, Low Stock Alerts, and Total Inventory Value (₹), styled with clean white surfaces, subtle borders, and dedicated icon containers.
   - **7-Day Stock Movement Visualization:** Pure CSS responsive grouped bar chart comparing daily Stock In (receipts) vs. Stock Out (issues) based on verified audit records.
   - **Inventory Health Donut Gauge:** Inline SVG proportional donut visualization tracking Healthy, Low Stock, and Out of Stock inventory percentages.
-  - **Category Volume Allocation:** Clean proportional distribution meters breaking down inventory assets by catalog category.
   - **Low Stock Exceptions List:** Immediate restock action links with priority warning badges.
   - **Recent Movement Log:** Compact, high-density table displaying the latest inventory movements.
 
@@ -70,7 +69,7 @@ Stockly directly demonstrates core software engineering and programming paradigm
 | **Templates** | Jinja2 | Reusable master layout (`base.html`), modular page templates, custom formatting filters |
 | **Backend** | Python 3 (Flask) | Lightweight WSGI web framework, RESTful routing, modular service architecture |
 | **Database** | SQLite3 | Embedded ACID-compliant database with foreign key enforcement and parameterized SQL queries |
-| **Testing** | `unittest` | 30 comprehensive automated unit and HTTP integration test cases |
+| **Testing** | `unittest` | 36 automated unit and HTTP integration test cases |
 
 ---
 
@@ -108,7 +107,7 @@ Stockly/
 │       └── app.js              # Event-driven UI listeners (validation, debouncing, tab console)
 │
 ├── tests/
-│   └── test_inventory.py       # 30 automated unit and HTTP integration test cases
+│   └── test_inventory.py       # 36 automated unit and HTTP integration test cases
 │
 └── docs/
     ├── architecture.md         # Multi-tiered architecture and paradigm mapping
@@ -151,7 +150,13 @@ Populate the database with realistic retail products across all categories and v
 ```bash
 python seed.py
 ```
-*(The seed script is idempotent and safe to run multiple times without duplicating data).*
+
+The seed command creates twelve marked demonstration products and a deterministic
+seven-calendar-day history of Stock In and Stock Out activity relative to the
+local machine date. Opening balances are kept in the ledger but are not counted
+as Stock In on the dashboard chart. A metadata marker makes repeated runs
+idempotent. Existing unmarked or mixed ledgers are preserved and the script
+stops rather than rewriting records that may belong to a real operator.
 
 ### 5. Launch the Application
 ```bash
@@ -170,7 +175,7 @@ Run the full test suite using Python's built-in `unittest` runner:
 python -m unittest tests/test_inventory.py -v
 ```
 
-All 30 automated tests execute against an isolated temporary SQLite database, verifying:
+All 36 automated tests execute against isolated temporary SQLite databases, verifying:
 - Product creation, duplicate SKU rejection, price validation, and editing
 - Soft-deletion (archiving) and preservation of historical records
 - Atomic Stock In and Stock Out movements

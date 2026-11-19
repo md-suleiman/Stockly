@@ -11,6 +11,7 @@ Each Flask route is an event handler triggered by a browser request.
 import os
 import logging
 import secrets
+from datetime import datetime
 from flask import (Flask, current_app, render_template, request, redirect,
                    url_for, flash, Response)
 from inventory_service import InventoryService
@@ -37,10 +38,31 @@ def get_service():
 
 
 def create_app(service_instance=None):
-    """Return the configured application with an optional service dependency."""
-    if service_instance is not None:
-        app.extensions['inventory_service'] = service_instance
-    return app
+    """Create an independently configured Flask application instance."""
+    application = Flask(__name__)
+    application.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+    application.extensions['inventory_service'] = (
+        service_instance or InventoryService()
+    )
+    application.jinja_env.filters.update({
+        'currency': format_currency,
+        'datefmt': format_datetime,
+        'stockstatus': format_stock_status,
+    })
+    application.context_processor(inject_global_context)
+    for rule in app.url_map.iter_rules():
+        if rule.endpoint == 'static':
+            continue
+        application.add_url_rule(
+            rule.rule,
+            endpoint=rule.endpoint,
+            view_func=app.view_functions[rule.endpoint],
+            methods=list(rule.methods - {'HEAD', 'OPTIONS'}),
+            defaults=rule.defaults,
+        )
+    application.errorhandler(404)(page_not_found)
+    application.errorhandler(500)(internal_error)
+    return application
 
 # ---------------------------------------------------------------------------
 # Jinja2 custom filters & context processors
@@ -52,24 +74,8 @@ app.jinja_env.filters['stockstatus'] = format_stock_status
 
 @app.context_processor
 def inject_global_context():
-    """Inject global real-time inventory health and asset versioning into all templates."""
-    try:
-        health_stats = get_service().get_inventory_health_stats()
-    except Exception:
-        logger.exception('Unable to calculate inventory health for the shared layout')
-        health_stats = {
-            'total_active': 0,
-            'healthy_count': 0,
-            'low_stock_count': 0,
-            'out_of_stock_count': 0,
-            'health_percent': None,
-            'health_label': 'N/A',
-            'attention_count': 0,
-        }
-    return {
-        'inventory_health': health_stats,
-        'cache_bust': '2.2.0',
-    }
+    """Inject only values shared by every page."""
+    return {'cache_bust': '2.3.0'}
 
 
 # ============================================================================
@@ -87,13 +93,15 @@ def dashboard():
     recent_txns = get_service().get_recent_transactions(limit=6)
     health_stats = get_service().get_inventory_health_stats()
     movement_stats = get_service().get_daily_movement_stats(days=7)
+    has_demo_activity = get_service().has_demo_activity()
 
     return render_template('dashboard.html',
                            stats=stats,
                            low_stock_products=low_stock,
                            recent_transactions=recent_txns,
                            health_stats=health_stats,
-                           movement_stats=movement_stats)
+                           movement_stats=movement_stats,
+                           has_demo_activity=has_demo_activity)
 
 
 # ============================================================================
@@ -229,20 +237,12 @@ def stock_in():
     reason = request.form.get('reason', '')
 
     if not product_id_raw or not product_id_raw.isdigit() or int(product_id_raw) <= 0:
-        active_products = get_service().get_all_products(include_archived=False)
-        return render_template('stock_management.html',
-                               products=active_products,
-                               mode='in',
-                               success_message=None,
-                               error_message='Please select a valid product.')
+        flash('Please select a valid product.', 'error')
+        return redirect(url_for('stock_management', mode='in'))
 
     success, message, new_qty = get_service().stock_in(int(product_id_raw), quantity, reason)
-    active_products = get_service().get_all_products(include_archived=False)
-    return render_template('stock_management.html',
-                           products=active_products,
-                           mode='in',
-                           success_message=message if success else None,
-                           error_message=message if not success else None)
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('stock_management', mode='in'))
 
 
 @app.route('/stock/out', methods=['POST'])
@@ -255,20 +255,12 @@ def stock_out():
     reason = request.form.get('reason', '')
 
     if not product_id_raw or not product_id_raw.isdigit() or int(product_id_raw) <= 0:
-        active_products = get_service().get_all_products(include_archived=False)
-        return render_template('stock_management.html',
-                               products=active_products,
-                               mode='out',
-                               success_message=None,
-                               error_message='Please select a valid product.')
+        flash('Please select a valid product.', 'error')
+        return redirect(url_for('stock_management', mode='out'))
 
     success, message, new_qty = get_service().stock_out(int(product_id_raw), quantity, reason)
-    active_products = get_service().get_all_products(include_archived=False)
-    return render_template('stock_management.html',
-                           products=active_products,
-                           mode='out',
-                           success_message=message if success else None,
-                           error_message=message if not success else None)
+    flash(message, 'success' if success else 'error')
+    return redirect(url_for('stock_management', mode='out'))
 
 
 # ============================================================================
@@ -290,6 +282,23 @@ def transactions():
     if txn_type not in ('', 'STOCK_IN', 'STOCK_OUT', 'OPENING'):
         txn_type = ''
         flash('Invalid movement filter ignored.', 'error')
+    for field_name, value in (('date_from', date_from), ('date_to', date_to)):
+        if value:
+            try:
+                datetime.strptime(value, '%Y-%m-%d')
+            except ValueError:
+                flash(f'Invalid {field_name.replace("_", " ")} filter ignored.', 'error')
+                if field_name == 'date_from':
+                    date_from = ''
+                else:
+                    date_to = ''
+    if date_from and date_to and date_from > date_to:
+        flash('Date From cannot be later than Date To.', 'error')
+        date_from = ''
+        date_to = ''
+    if sort_order.upper() not in ('ASC', 'DESC', 'OLDEST', 'NEWEST'):
+        sort_order = 'DESC'
+        flash('Invalid sort order ignored.', 'error')
 
     txn_list = get_service().get_transactions(
         product_id=product_id if product_id else None,
@@ -379,14 +388,13 @@ def settings():
 
 @app.errorhandler(404)
 def page_not_found(e):
-    flash('Page not found.', 'error')
-    return redirect(url_for('dashboard'))
+    return render_template('404.html'), 404
 
 
 @app.errorhandler(500)
 def internal_error(e):
-    flash('An internal error occurred. Please try again.', 'error')
-    return redirect(url_for('dashboard'))
+    logger.exception('Unhandled application error')
+    return render_template('500.html'), 500
 
 
 # ============================================================================

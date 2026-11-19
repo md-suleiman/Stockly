@@ -40,12 +40,19 @@
 
             <div class="sidebar-content">
                 <nav aria-label="Main navigation">
+                    <div class="nav-section-title">Navigation</div>
                     <ul class="sidebar-nav">
                         <li class="nav-item {% if request.path == '/' %}active{% endif %}"><a href="/" class="nav-link" {% if request.path == '/' %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg><span>Dashboard</span></a></li>
                         <li class="nav-item {% if request.path.startswith('/products') %}active{% endif %}"><a href="/products" class="nav-link" {% if request.path.startswith('/products') %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span>Products</span></a></li>
                         <li class="nav-item {% if request.path.startswith('/stock') %}active{% endif %}"><a href="/stock" class="nav-link" {% if request.path.startswith('/stock') %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"></path></svg><span>Stock Management</span></a></li>
                         <li class="nav-item {% if request.path.startswith('/transactions') %}active{% endif %}"><a href="/transactions" class="nav-link" {% if request.path.startswith('/transactions') %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><span>Transactions</span></a></li>
                         <li class="nav-item {% if request.path.startswith('/reports') %}active{% endif %}"><a href="/reports" class="nav-link" {% if request.path.startswith('/reports') %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg><span>Reports</span></a></li>
+                    </ul>
+                    <div class="nav-section-title">Quick Actions</div>
+                    <ul class="sidebar-nav quick-actions">
+                        <li class="nav-item"><a href="/products/add" class="nav-link"><span>+ Add Product</span></a></li>
+                        <li class="nav-item"><a href="/stock?mode=in" class="nav-link"><span>Record Stock In</span></a></li>
+                        <li class="nav-item"><a href="/stock?mode=out" class="nav-link"><span>Record Stock Out</span></a></li>
                     </ul>
                 </nav>
             </div>

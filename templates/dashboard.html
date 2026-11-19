@@ -8,6 +8,9 @@
     <div class="page-title-group">
         <h1 class="page-title">Resource Management</h1>
         <p class="page-subtitle">Your inventory at a glance.</p>
+        {% if has_demo_activity %}
+            <span class="sample-activity-note">Sample activity included</span>
+        {% endif %}
     </div>
     <div class="page-actions">
         <a href="/products/add" class="btn btn-primary">

@@ -27,6 +27,7 @@ from utils import (
     format_currency,
     format_datetime
 )
+from seed import seed_database
 from app import app
 
 
@@ -447,17 +448,16 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
     """Integration tests for Flask HTTP routing using the Flask test client."""
 
     def setUp(self):
-        app.config['TESTING'] = True
-        app.config['WTF_CSRF_ENABLED'] = False
         self.temp_db_fd, self.temp_db_path = tempfile.mkstemp(suffix='.db')
         self.route_db = Database(db_path=self.temp_db_path)
+        self.route_db.init_db()
         self.route_service = InventoryService(db=self.route_db)
-        self.previous_service = app.extensions['inventory_service']
-        app_module.create_app(self.route_service)
-        self.client = app.test_client()
+        self.test_app = app_module.create_app(self.route_service)
+        self.test_app.config['TESTING'] = True
+        self.test_app.config['WTF_CSRF_ENABLED'] = False
+        self.client = self.test_app.test_client()
 
     def tearDown(self):
-        app_module.create_app(self.previous_service)
         os.close(self.temp_db_fd)
         if os.path.exists(self.temp_db_path):
             os.unlink(self.temp_db_path)
@@ -505,13 +505,95 @@ class TestStocklyFlaskRoutes(unittest.TestCase):
 
     def test_stock_in_invalid_product_id(self):
         res = self.client.post('/stock/in', data={'product_id': 'invalid', 'quantity': '5'})
-        self.assertEqual(res.status_code, 200)
-        self.assertIn(b'Please select a valid product', res.data)
+        self.assertEqual(res.status_code, 302)
+        follow_up = self.client.get(res.headers['Location'])
+        self.assertEqual(follow_up.status_code, 200)
+        self.assertIn(b'Please select a valid product', follow_up.data)
 
     def test_stock_out_invalid_product_id(self):
         res = self.client.post('/stock/out', data={'product_id': '-1', 'quantity': '5'})
-        self.assertEqual(res.status_code, 200)
-        self.assertIn(b'Please select a valid product', res.data)
+        self.assertEqual(res.status_code, 302)
+        follow_up = self.client.get(res.headers['Location'])
+        self.assertIn(b'Please select a valid product', follow_up.data)
+
+    def test_successful_stock_post_uses_prg_without_duplicate_on_refresh(self):
+        product_id, errors = self.route_service.add_product(
+            self._route_product_data(quantity='0')
+        )
+        self.assertEqual(errors, [])
+        response = self.client.post(
+            '/stock/in',
+            data={'product_id': str(product_id), 'quantity': '4', 'reason': 'delivery'},
+        )
+        self.assertEqual(response.status_code, 302)
+        location = response.headers['Location']
+        self.client.get(location)
+        self.client.get(location)
+        transactions = self.route_service.get_transactions(product_id=product_id)
+        self.assertEqual(len([t for t in transactions if t.transaction_type == 'STOCK_IN']), 1)
+        self.assertEqual(self.route_service.get_product(product_id).quantity, 4)
+
+    def test_error_pages_return_http_errors(self):
+        self.assertEqual(self.client.get('/missing-page').status_code, 404)
+        self.test_app.config['TESTING'] = False
+        self.test_app.view_functions['dashboard'] = lambda: (_ for _ in ()).throw(
+            RuntimeError('test failure')
+        )
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 500)
+        self.assertIn(b'Something went wrong', response.data)
+
+    def test_factory_instances_have_isolated_services(self):
+        other_fd, other_path = tempfile.mkstemp(suffix='.db')
+        os.close(other_fd)
+        try:
+            other_db = Database(db_path=other_path)
+            other_db.init_db()
+            other_service = InventoryService(db=other_db)
+            other_app = app_module.create_app(other_service)
+            product_id, _ = self.route_service.add_product(
+                self._route_product_data(sku='ISOLATED-1')
+            )
+            self.assertIsNone(other_service.get_product(product_id))
+            self.assertEqual(other_app.test_client().get('/products').status_code, 200)
+        finally:
+            os.unlink(other_path)
+
+    def _route_product_data(self, **overrides):
+        data = {
+            'name': 'Route Test Product',
+            'sku': 'ROUTE-TEST-1',
+            'category': 'Electronics',
+            'price': '10',
+            'quantity': '1',
+            'reorder_level': '1',
+        }
+        data.update(overrides)
+        return data
+
+
+class TestHistoricalSeed(unittest.TestCase):
+    def test_seed_is_historical_consistent_and_idempotent(self):
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        try:
+            first = seed_database(path)
+            second = seed_database(path)
+            self.assertEqual(first['products_added'], 12)
+            self.assertEqual(first['transactions_added'], 27)
+            self.assertEqual(second['transactions_added'], 0)
+            conn = sqlite3.connect(path)
+            self.assertEqual(conn.execute(
+                "SELECT COUNT(DISTINCT substr(created_at, 1, 10)) "
+                "FROM stock_transactions WHERE reason LIKE '[DEMO]%' "
+                "AND transaction_type IN ('STOCK_IN', 'STOCK_OUT')"
+            ).fetchone()[0], 7)
+            self.assertEqual(conn.execute(
+                "SELECT COUNT(*) FROM stock_transactions WHERE stock_after < 0"
+            ).fetchone()[0], 0)
+            conn.close()
+        finally:
+            os.unlink(path)
 
 
 if __name__ == '__main__':

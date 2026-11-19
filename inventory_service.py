@@ -328,6 +328,16 @@ class InventoryService:
     # TRANSACTIONS
     # ========================================================================
 
+    def has_demo_activity(self):
+        """Return whether the database contains marked demonstration activity."""
+        conn = self.db.get_connection()
+        try:
+            return conn.execute(
+                "SELECT 1 FROM stock_transactions WHERE reason LIKE '[DEMO]%' LIMIT 1"
+            ).fetchone() is not None
+        finally:
+            conn.close()
+
     def get_transactions(self, product_id=None, transaction_type=None,
                          date_from=None, date_to=None, search='',
                          sort_order='DESC'):

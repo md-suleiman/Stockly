@@ -55,6 +55,11 @@ class Database:
         CREATE INDEX IF NOT EXISTS idx_txn_product_id       ON stock_transactions(product_id);
         CREATE INDEX IF NOT EXISTS idx_txn_type             ON stock_transactions(transaction_type);
         CREATE INDEX IF NOT EXISTS idx_txn_created_at       ON stock_transactions(created_at);
+
+        CREATE TABLE IF NOT EXISTS app_metadata (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
     '''
 
     def __init__(self, db_path=None):
@@ -99,4 +104,3 @@ class Database:
 
     def __repr__(self):
         return f"Database(path='{self.db_path}')"
-
