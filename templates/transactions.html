@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+
+{% block title %}Transactions Audit Log — Stockly{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <div class="page-title-group">
+        <h1 class="page-title">Transaction History</h1>
+        <p class="page-subtitle">Immutable audit trail of all inventory receipts, fulfillments, and opening balances.</p>
+    </div>
+    <div class="page-actions">
+        <a href="/reports/export/transactions" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Export CSV</span>
+        </a>
+    </div>
+</div>
+
+<!-- Filter Toolbar -->
+<div class="filter-card">
+    <form method="GET" action="/transactions" class="filter-row">
+        <!-- Search -->
+        <div class="filter-item filter-item-search">
+            <label class="form-label" for="search-input">Search Logs</label>
+            <div class="input-with-icon">
+                <span class="input-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </span>
+                <input type="text" id="search-input" name="search" class="form-control search-input" placeholder="Search by product, SKU, or remarks..." value="{{ filters.search or '' }}">
+            </div>
+        </div>
+
+        <!-- Product Filter -->
+        <div class="filter-item">
+            <label class="form-label" for="filter-product">Product</label>
+            <select id="filter-product" name="product_id" class="form-control">
+                <option value="">All Products</option>
+                {% for p in products %}
+                    <option value="{{ p.product_id }}" {% if filters.product_id == p.product_id|string %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Transaction Type -->
+        <div class="filter-item">
+            <label class="form-label" for="filter-type">Movement Type</label>
+            <select id="filter-type" name="type" class="form-control">
+                <option value="" {% if not filters.type %}selected{% endif %}>All Types</option>
+                <option value="STOCK_IN" {% if filters.type == 'STOCK_IN' %}selected{% endif %}>Stock In (Receipts)</option>
+                <option value="STOCK_OUT" {% if filters.type == 'STOCK_OUT' %}selected{% endif %}>Stock Out (Issues)</option>
+                <option value="OPENING" {% if filters.type == 'OPENING' %}selected{% endif %}>Opening Balance</option>
+            </select>
+        </div>
+
+        <!-- Date Range -->
+        <div class="filter-item" style="min-width: 130px;">
+            <label class="form-label" for="date_from">Date From</label>
+            <input type="date" id="date_from" name="date_from" class="form-control" value="{{ filters.date_from or '' }}">
+        </div>
+
+        <div class="filter-item" style="min-width: 130px;">
+            <label class="form-label" for="date_to">Date To</label>
+            <input type="date" id="date_to" name="date_to" class="form-control" value="{{ filters.date_to or '' }}">
+        </div>
+
+        <!-- Sort Order -->
+        <div class="filter-item" style="min-width: 140px;">
+            <label class="form-label" for="filter-sort">Sort Order</label>
+            <select id="filter-sort" name="sort" class="form-control">
+                <option value="newest" {% if filters.sort == 'newest' or not filters.sort or filters.sort == 'DESC' %}selected{% endif %}>Newest First</option>
+                <option value="oldest" {% if filters.sort == 'oldest' or filters.sort == 'ASC' %}selected{% endif %}>Oldest First</option>
+            </select>
+        </div>
+
+        <!-- Filter Submit -->
+        <div style="flex: 0 0 auto;">
+            <button type="submit" class="btn btn-secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                </svg>
+                <span>Filter</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Transactions Table Card -->
+{% if transactions %}
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title-group">
+                <h2 class="card-title">Movement Log</h2>
+            </div>
+            <span class="card-subtitle">{{ transactions|length }} record{{ 's' if transactions|length != 1 else '' }} found</span>
+        </div>
+        <div class="card-body no-padding">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Ref #</th>
+                            <th>Timestamp</th>
+                            <th>Product</th>
+                            <th>SKU</th>
+                            <th>Type</th>
+                            <th>Change</th>
+                            <th>Before</th>
+                            <th>After</th>
+                            <th>Audit Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in transactions %}
+                            <tr>
+                                <td class="cell-muted" style="font-family: ui-monospace, monospace;">#{{ t.transaction_id }}</td>
+                                <td class="cell-muted">{{ t.created_at|datefmt }}</td>
+                                <td class="cell-product-name">{{ t.product_name }}</td>
+                                <td>
+                                    <span class="cell-sku">{{ t.product_sku }}</span>
+                                </td>
+                                <td>
+                                    {% if t.transaction_type == 'STOCK_IN' %}
+                                        <span class="badge badge-success">
+                                            <span class="badge-dot"></span>
+                                            <span>Stock In</span>
+                                        </span>
+                                    {% elif t.transaction_type == 'STOCK_OUT' %}
+                                        <span class="badge badge-danger">
+                                            <span class="badge-dot"></span>
+                                            <span>Stock Out</span>
+                                        </span>
+                                    {% elif t.transaction_type == 'OPENING' %}
+                                        <span class="badge badge-primary">
+                                            <span class="badge-dot"></span>
+                                            <span>Opening</span>
+                                        </span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">{{ t.transaction_type|stockstatus }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="font-weight: 600;">
+                                    {% if t.transaction_type == 'STOCK_OUT' %}
+                                        <span style="color: var(--danger);">-{{ t.quantity }}</span>
+                                    {% else %}
+                                        <span style="color: var(--success);">+{{ t.quantity }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="cell-muted">{{ t.stock_before }}</td>
+                                <td style="font-weight: 600;">{{ t.stock_after }}</td>
+                                <td class="cell-muted" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    {{ t.reason or '—' }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+            <div class="empty-state-title">No transactions match your query</div>
+            <p class="empty-state-desc">Try resetting your date range, type, or product filter.</p>
+            <a href="/transactions" class="btn btn-secondary">Reset Filters</a>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

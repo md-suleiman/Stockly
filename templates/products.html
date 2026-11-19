@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+
+{% block title %}Products Catalog — Stockly{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <div class="page-title-group">
+        <h1 class="page-title">Products</h1>
+        <p class="page-subtitle">Manage your inventory catalog, unit pricing, and reorder levels.</p>
+    </div>
+    <div class="page-actions">
+        <a href="/products/add" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Add Product</span>
+        </a>
+    </div>
+</div>
+
+<!-- Filter & Search Toolbar -->
+<div class="filter-card">
+    <form method="GET" action="/products" class="filter-row">
+        <!-- Search Input -->
+        <div class="filter-item filter-item-search">
+            <label class="form-label" for="search-input">Search Catalog</label>
+            <div class="input-with-icon">
+                <span class="input-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </span>
+                <input type="text" id="search-input" name="search" class="form-control search-input" placeholder="Search by product name or SKU..." value="{{ search_query or '' }}">
+            </div>
+        </div>
+
+        <!-- Category Dropdown -->
+        <div class="filter-item">
+            <label class="form-label" for="filter-category">Category</label>
+            <select id="filter-category" name="category" class="form-control">
+                <option value="">All Categories</option>
+                {% for cat in categories %}
+                    <option value="{{ cat }}" {% if category_filter == cat %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Stock Status Dropdown -->
+        <div class="filter-item">
+            <label class="form-label" for="filter-status">Stock Status</label>
+            <select id="filter-status" name="status" class="form-control">
+                <option value="" {% if not status_filter %}selected{% endif %}>All Statuses</option>
+                <option value="in_stock" {% if status_filter == 'in_stock' %}selected{% endif %}>In Stock</option>
+                <option value="low_stock" {% if status_filter == 'low_stock' %}selected{% endif %}>Low Stock</option>
+                <option value="out_of_stock" {% if status_filter == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
+            </select>
+        </div>
+
+        <!-- Sort Order -->
+        <div class="filter-item">
+            <label class="form-label" for="filter-sort">Sort By</label>
+            <select id="filter-sort" name="sort" class="form-control">
+                <option value="newest" {% if sort_by == 'newest' %}selected{% endif %}>Newest First</option>
+                <option value="oldest" {% if sort_by == 'oldest' %}selected{% endif %}>Oldest First</option>
+                <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>Name (A–Z)</option>
+                <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>Name (Z–A)</option>
+                <option value="price_low" {% if sort_by == 'price_low' %}selected{% endif %}>Price (Low to High)</option>
+                <option value="price_high" {% if sort_by == 'price_high' %}selected{% endif %}>Price (High to Low)</option>
+                <option value="qty_low" {% if sort_by == 'qty_low' %}selected{% endif %}>Stock (Low to High)</option>
+                <option value="qty_high" {% if sort_by == 'qty_high' %}selected{% endif %}>Stock (High to Low)</option>
+            </select>
+        </div>
+
+        <!-- Archived Checkbox -->
+        <div class="filter-item" style="flex: 0 0 auto; min-width: auto; padding-bottom: 8px;">
+            <label class="checkbox-label" for="show-archived">
+                <input type="checkbox" id="show-archived" name="archived" value="1" {% if include_archived %}checked{% endif %}>
+                <span>Show Archived</span>
+            </label>
+        </div>
+
+        <!-- Submit Filter Button -->
+        <div style="flex: 0 0 auto;">
+            <button type="submit" class="btn btn-secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                </svg>
+                <span>Filter</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Products Table Card -->
+{% if products %}
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title-group">
+                <h2 class="card-title">Inventory Catalog</h2>
+            </div>
+            <span class="card-subtitle">{{ products|length }} product{{ 's' if products|length != 1 else '' }} found</span>
+        </div>
+        <div class="card-body no-padding">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>SKU</th>
+                            <th>Product Name</th>
+                            <th>Category</th>
+                            <th>Unit Price</th>
+                            <th>Available Stock</th>
+                            <th>Reorder Level</th>
+                            <th>Status</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in products %}
+                            <tr>
+                                <td>
+                                    <span class="cell-sku">{{ p.sku }}</span>
+                                </td>
+                                <td>
+                                    <span class="cell-product-name">{{ p.name }}</span>
+                                </td>
+                                <td class="cell-muted">{{ p.category }}</td>
+                                <td style="font-weight: 600;">{{ p.price|currency }}</td>
+                                <td style="font-weight: 600;">{{ p.quantity }} units</td>
+                                <td class="cell-muted">{{ p.reorder_level }} units</td>
+                                <td>
+                                    {% if not p.is_active %}
+                                        <span class="badge badge-secondary">
+                                            <span class="badge-dot"></span>
+                                            <span>Archived</span>
+                                        </span>
+                                    {% elif p.quantity == 0 %}
+                                        <span class="badge badge-danger">
+                                            <span class="badge-dot"></span>
+                                            <span>Out of Stock</span>
+                                        </span>
+                                    {% elif p.quantity <= p.reorder_level %}
+                                        <span class="badge badge-warning">
+                                            <span class="badge-dot"></span>
+                                            <span>Low Stock</span>
+                                        </span>
+                                    {% else %}
+                                        <span class="badge badge-success">
+                                            <span class="badge-dot"></span>
+                                            <span>In Stock</span>
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align: right;">
+                                    {% if p.is_active %}
+                                        <div class="cell-actions" style="justify-content: flex-end;">
+                                            <a href="/products/edit/{{ p.product_id }}" class="btn btn-secondary btn-sm" title="Edit Product">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                                </svg>
+                                                <span>Edit</span>
+                                            </a>
+                                            <form method="POST" action="/products/archive/{{ p.product_id }}" class="archive-form" data-product-name="{{ p.name }}" style="display:inline;">
+                                                <button type="submit" class="btn btn-ghost btn-sm" style="color: var(--danger);" title="Archive Product">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                        <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                                                        <rect x="1" y="3" width="22" height="5"></rect>
+                                                        <line x1="10" y1="12" x2="14" y2="12"></line>
+                                                    </svg>
+                                                    <span>Archive</span>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    {% else %}
+                                        <span class="cell-muted" style="font-size: 0.75rem;">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </div>
+            <div class="empty-state-title">No products match your criteria</div>
+            <p class="empty-state-desc">Try clearing filters or search terms, or add a new product to your inventory.</p>
+            <div style="display: flex; gap: 8px;">
+                <a href="/products" class="btn btn-secondary">Clear Filters</a>
+                <a href="/products/add" class="btn btn-primary">Add Product</a>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
