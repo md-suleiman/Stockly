@@ -395,12 +395,16 @@ def internal_error(e):
     return render_template('500.html'), 500
 
 
+# Vercel imports this module directly and requires the Flask application here.
+# Keep the factory above for isolated test applications and dependency injection.
+app = create_app()
+
+
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
 
 if __name__ == '__main__':
-    app = create_app()
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1')
     print('=' * 60)
     print('  STOCKLY — Inventory & Resource Management System')
