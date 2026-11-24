@@ -18,26 +18,27 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // Warm primary server-rendered pages as a user approaches sidebar links.
-    // Each destination is fetched once and browser navigation still performs
-    // the normal full-page request, preserving existing page behavior.
-    const prefetchedPages = new Set();
-    const prefetchSidebarPage = (anchor) => {
-        if (!anchor || !anchor.href || prefetchedPages.has(anchor.href)) return;
-        const target = new URL(anchor.href, window.location.href);
-        const paths = ['/', '/products', '/stock', '/transactions', '/reports', '/settings'];
-        if (target.origin !== window.location.origin || !paths.includes(target.pathname)) return;
-        const hint = document.createElement('link');
-        hint.rel = 'prefetch';
-        hint.as = 'document';
-        hint.href = target.href;
-        document.head.appendChild(hint);
-        prefetchedPages.add(target.href);
-    };
-    document.querySelectorAll('.sidebar .nav-link').forEach((anchor) => {
-        anchor.addEventListener('pointerenter', () => prefetchSidebarPage(anchor), { once: true });
-        anchor.addEventListener('focus', () => prefetchSidebarPage(anchor), { once: true });
-    });
+    // Let browsers that support Speculation Rules prerender primary sidebar
+    // destinations at moderate eagerness. Existing anchor navigation remains
+    // the fallback for unsupported browsers; the current page is excluded and
+    // the marker prevents duplicate rules from being appended.
+    const sidebarDestinations = ['/', '/products', '/stock', '/transactions', '/reports', '/settings'];
+    const supportsSpeculationRules = HTMLScriptElement.supports?.('speculationrules');
+    const rulesMarker = '[data-sidebar-prerender-rules]';
+    if (supportsSpeculationRules && !document.head.querySelector(rulesMarker)) {
+        const urls = sidebarDestinations
+            .filter((path) => path !== window.location.pathname)
+            .map((path) => new URL(path, window.location.origin).href);
+        if (urls.length) {
+            const rules = document.createElement('script');
+            rules.type = 'speculationrules';
+            rules.dataset.sidebarPrerenderRules = 'true';
+            rules.textContent = JSON.stringify({
+                prerender: [{source: 'list', urls, eagerness: 'moderate'}],
+            });
+            document.head.appendChild(rules);
+        }
+    }
 
     // ====================================================================
     // 1. Mobile Sidebar Navigation Drawer & Backdrop
