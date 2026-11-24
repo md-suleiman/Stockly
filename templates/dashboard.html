@@ -234,11 +234,11 @@
 
 <!-- Two-Column Operational Detail Section -->
 <div class="grid grid-2">
-    <!-- Low Stock Alerts -->
+    <!-- Replenishment alerts, including zero-stock items -->
     <div class="card">
         <div class="card-header">
             <div class="card-title-group">
-                <h2 class="card-title">Low Stock Exceptions</h2>
+                <h2 class="card-title">Stock Alerts</h2>
             </div>
             <a href="/products?status=low_stock" class="btn btn-ghost btn-sm">
                 <span>View All ({{ low_stock_products|length }})</span>
@@ -258,9 +258,9 @@
                             </div>
                             <div class="alert-item-meta">
                                 <span class="alert-item-qty">{{ p.quantity }} / {{ p.reorder_level }}</span>
-                                <span class="badge badge-warning">
+                                <span class="badge {% if p.quantity == 0 %}badge-danger{% else %}badge-warning{% endif %}">
                                     <span class="badge-dot"></span>
-                                    <span>Low Stock</span>
+                                    <span>{% if p.quantity == 0 %}Out of Stock{% else %}Low Stock{% endif %}</span>
                                 </span>
                                 <a href="/stock?mode=in&amp;product_id={{ p.product_id }}" class="btn btn-secondary btn-sm" title="Restock {{ p.name }}" style="padding: 3px 8px;">
                                     <span>Restock</span>
@@ -277,8 +277,8 @@
                             <polyline points="22 4 12 14.01 9 11.01"></polyline>
                         </svg>
                     </div>
-                    <div class="empty-state-title">No low-stock items currently need replenishment.</div>
-                    <p class="empty-state-desc">Zero-stock products, if any, are listed separately in Reports.</p>
+                    <div class="empty-state-title">No items currently need replenishment.</div>
+                    <p class="empty-state-desc">All active inventory is above its reorder level.</p>
                 </div>
             {% endif %}
         </div>

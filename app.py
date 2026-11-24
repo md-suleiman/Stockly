@@ -22,7 +22,7 @@ from clock import timestamp
 logger = logging.getLogger(__name__)
 
 routes = Blueprint('stockly', __name__)
-APP_VERSION = '2.5.0'
+APP_VERSION = '2.6.0'
 
 
 def get_service():
@@ -75,20 +75,13 @@ def inject_global_context():
 def dashboard():
     """
     Event-Driven: GET / triggers dashboard rendering.
-    Calculates KPI metrics, 7-day movement data, and health breakdown from SQLite.
+    Retrieves the dashboard payload through one service call so production uses
+    one pooled connection instead of independent queries per dashboard panel.
     """
-    stats = get_service().get_dashboard_stats()
-    low_stock = get_service().get_low_stock_products()
-    recent_txns = get_service().get_recent_transactions(limit=6)
-    health_stats = get_service().get_inventory_health_stats()
-    movement_stats = get_service().get_daily_movement_stats(days=7)
+    dashboard_data = get_service().get_dashboard_data()
 
     return render_template('dashboard.html',
-                           stats=stats,
-                           low_stock_products=low_stock,
-                           recent_transactions=recent_txns,
-                           health_stats=health_stats,
-                           movement_stats=movement_stats)
+                           **dashboard_data)
 
 
 # ============================================================================
