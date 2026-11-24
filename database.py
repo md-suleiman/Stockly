@@ -21,6 +21,12 @@ class _Row:
     def keys(self):
         return self._mapping.keys()
 
+    def __iter__(self):
+        return iter(self._values)
+
+    def __len__(self):
+        return len(self._values)
+
 
 class _Cursor:
     def __init__(self, cursor, lastrowid=None):
@@ -57,6 +63,19 @@ class _PostgresConnection:
             r"datetime\s*\(\s*replace\(([^,]+),\s*'T',\s*' '\)\s*\)",
             r"replace(\1, 'T', ' ')::timestamp", statement, flags=re.IGNORECASE,
         )
+        statement = re.sub(
+            r'INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(\([^;]+\))',
+            lambda match: (
+                f"INSERT INTO {match.group(1)} ({match.group(2)}) VALUES {match.group(3)} "
+                f"ON CONFLICT ({match.group(2).split(',')[0].strip()}) DO UPDATE SET "
+                + ', '.join(
+                    f"{column.strip()} = EXCLUDED.{column.strip()}"
+                    for column in match.group(2).split(',')[1:]
+                )
+            ),
+            statement,
+            flags=re.IGNORECASE,
+        )
         return statement.replace('?', '%s')
 
     @classmethod
@@ -81,7 +100,10 @@ class _PostgresConnection:
 
     def executescript(self, sql):
         with self._connection.cursor() as cursor:
-            cursor.execute(sql)
+            cursor.execute(self._translate(
+                sql.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'BIGSERIAL PRIMARY KEY')
+                .replace('REAL', 'DOUBLE PRECISION')
+            ))
 
     def commit(self):
         self._connection.commit()
@@ -128,6 +150,7 @@ class Database:
     def __init__(self, db_path=None):
         self.database_url = os.environ.get('DATABASE_URL') if db_path is None else None
         self.using_postgres = bool(self.database_url)
+        self.supports_row_locking = self.using_postgres
         if not self.using_postgres:
             if db_path is None:
                 base_dir = os.path.dirname(os.path.abspath(__file__))

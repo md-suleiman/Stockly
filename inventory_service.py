@@ -4,7 +4,7 @@ Inventory Service Module for Stockly
 PROGRAMMING PARADIGM: Object-Oriented Programming (OOP)
 
 The InventoryService class is the central business-logic layer. It mediates
-between Flask routes and the SQLite database, performing validation, atomic
+between Flask routes and the configured database, performing validation, atomic
 stock operations, and report generation. This follows the Service Pattern —
 a common OOP architectural approach.
 """
@@ -213,8 +213,9 @@ class InventoryService:
         conn = self.db.get_connection()
         try:
             conn.execute('BEGIN IMMEDIATE')
+            lock_clause = ' FOR UPDATE' if self.db.supports_row_locking else ''
             row = conn.execute(
-                'SELECT * FROM products WHERE product_id = ?', (product_id,)
+                f'SELECT * FROM products WHERE product_id = ?{lock_clause}', (product_id,)
             ).fetchone()
             product = Product.from_row(row)
             quantity, errors = validate_stock_movement(product, quantity_str, 'STOCK_IN')
@@ -254,8 +255,9 @@ class InventoryService:
         conn = self.db.get_connection()
         try:
             conn.execute('BEGIN IMMEDIATE')
+            lock_clause = ' FOR UPDATE' if self.db.supports_row_locking else ''
             row = conn.execute(
-                'SELECT * FROM products WHERE product_id = ?', (product_id,)
+                f'SELECT * FROM products WHERE product_id = ?{lock_clause}', (product_id,)
             ).fetchone()
             product = Product.from_row(row)
             quantity, errors = validate_stock_movement(product, quantity_str, 'STOCK_OUT')

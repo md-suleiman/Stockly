@@ -364,6 +364,10 @@ def export_transactions():
 @routes.route('/settings')
 def settings():
     """Display application settings and information."""
+    database_label = (
+        'Neon PostgreSQL (pooled)'
+        if get_service().db.using_postgres else 'Local SQLite database'
+    )
     app_info = {
         'name': 'Stockly',
         'tagline': 'Smarter Stock. Simpler Management.',
@@ -373,6 +377,7 @@ def settings():
         'categories': Product.CATEGORIES,
         'description': 'A local-first inventory management workspace for tracking products, stock movements, and reports.',
         'version': APP_VERSION,
+        'database_label': database_label,
     }
     return render_template('settings.html', app_info=app_info)
 
