@@ -1,4 +1,4 @@
-"""Canonical India-local clock and SQLite timestamp helpers."""
+"""Canonical India-local clock and database timestamp helpers."""
 
 from datetime import datetime, timedelta, timezone
 

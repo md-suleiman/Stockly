@@ -42,7 +42,7 @@ class Product:
     # -- OOP: Class Method / Factory Pattern ---------------------------------
     @classmethod
     def from_row(cls, row):
-        """Create a Product from a sqlite3.Row; returns None for a None row."""
+        """Create a Product from a database row; returns None for a None row."""
         if row is None:
             return None
         return cls(
@@ -127,7 +127,7 @@ class StockTransaction:
 
     @classmethod
     def from_row(cls, row):
-        """Create a StockTransaction from a sqlite3.Row."""
+        """Create a StockTransaction from a database row."""
         if row is None:
             return None
         keys = row.keys()

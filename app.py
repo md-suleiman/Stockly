@@ -22,7 +22,7 @@ from clock import timestamp
 logger = logging.getLogger(__name__)
 
 routes = Blueprint('stockly', __name__)
-APP_VERSION = '2.5.0'
+APP_VERSION = '2.6.0'
 
 
 def get_service():
@@ -75,20 +75,13 @@ def inject_global_context():
 def dashboard():
     """
     Event-Driven: GET / triggers dashboard rendering.
-    Calculates KPI metrics, 7-day movement data, and health breakdown from SQLite.
+    Retrieves the dashboard payload through one service call so production uses
+    one pooled connection instead of independent queries per dashboard panel.
     """
-    stats = get_service().get_dashboard_stats()
-    low_stock = get_service().get_low_stock_products()
-    recent_txns = get_service().get_recent_transactions(limit=6)
-    health_stats = get_service().get_inventory_health_stats()
-    movement_stats = get_service().get_daily_movement_stats(days=7)
+    dashboard_data = get_service().get_dashboard_data()
 
     return render_template('dashboard.html',
-                           stats=stats,
-                           low_stock_products=low_stock,
-                           recent_transactions=recent_txns,
-                           health_stats=health_stats,
-                           movement_stats=movement_stats)
+                           **dashboard_data)
 
 
 # ============================================================================
@@ -371,6 +364,10 @@ def export_transactions():
 @routes.route('/settings')
 def settings():
     """Display application settings and information."""
+    database_label = (
+        'Neon PostgreSQL (pooled)'
+        if get_service().db.using_postgres else 'Local SQLite database'
+    )
     app_info = {
         'name': 'Stockly',
         'tagline': 'Smarter Stock. Simpler Management.',
@@ -380,6 +377,7 @@ def settings():
         'categories': Product.CATEGORIES,
         'description': 'A local-first inventory management workspace for tracking products, stock movements, and reports.',
         'version': APP_VERSION,
+        'database_label': database_label,
     }
     return render_template('settings.html', app_info=app_info)
 
@@ -397,12 +395,16 @@ def internal_error(e):
     return render_template('500.html'), 500
 
 
+# Vercel imports this module directly and requires the Flask application here.
+# Keep the factory above for isolated test applications and dependency injection.
+app = create_app()
+
+
 # ============================================================================
 # ENTRY POINT
 # ============================================================================
 
 if __name__ == '__main__':
-    app = create_app()
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1')
     print('=' * 60)
     print('  STOCKLY — Inventory & Resource Management System')

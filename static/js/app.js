@@ -18,6 +18,28 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // Let browsers that support Speculation Rules prerender primary sidebar
+    // destinations at moderate eagerness. Existing anchor navigation remains
+    // the fallback for unsupported browsers; the current page is excluded and
+    // the marker prevents duplicate rules from being appended.
+    const sidebarDestinations = ['/', '/products', '/stock', '/transactions', '/reports', '/settings'];
+    const supportsSpeculationRules = HTMLScriptElement.supports?.('speculationrules');
+    const rulesMarker = '[data-sidebar-prerender-rules]';
+    if (supportsSpeculationRules && !document.head.querySelector(rulesMarker)) {
+        const urls = sidebarDestinations
+            .filter((path) => path !== window.location.pathname)
+            .map((path) => new URL(path, window.location.origin).href);
+        if (urls.length) {
+            const rules = document.createElement('script');
+            rules.type = 'speculationrules';
+            rules.dataset.sidebarPrerenderRules = 'true';
+            rules.textContent = JSON.stringify({
+                prerender: [{source: 'list', urls, eagerness: 'moderate'}],
+            });
+            document.head.appendChild(rules);
+        }
+    }
+
     // ====================================================================
     // 1. Mobile Sidebar Navigation Drawer & Backdrop
     // ====================================================================

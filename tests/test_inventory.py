@@ -13,6 +13,7 @@ import tempfile
 import unittest
 import sqlite3
 from datetime import datetime, timedelta
+from flask import Flask
 import app as app_module
 from unittest.mock import patch
 
@@ -32,6 +33,16 @@ from utils import (
 from seed import seed_database
 import seed as seed_module
 from clock import IST, today
+
+
+class TestModuleEntryPoint(unittest.TestCase):
+    """The importable Flask app is required by Vercel's Python runtime."""
+
+    def test_module_exposes_registered_flask_application(self):
+        self.assertIsInstance(app_module.app, Flask)
+        rules = {rule.rule for rule in app_module.app.url_map.iter_rules()}
+        self.assertTrue({'/', '/products', '/stock', '/transactions', '/reports', '/settings'} <= rules)
+        self.assertIn('stockly.dashboard', app_module.app.view_functions)
 
 
 class TestStocklyService(unittest.TestCase):

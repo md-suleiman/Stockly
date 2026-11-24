@@ -4,7 +4,7 @@ Inventory Service Module for Stockly
 PROGRAMMING PARADIGM: Object-Oriented Programming (OOP)
 
 The InventoryService class is the central business-logic layer. It mediates
-between Flask routes and the SQLite database, performing validation, atomic
+between Flask routes and the configured database, performing validation, atomic
 stock operations, and report generation. This follows the Service Pattern —
 a common OOP architectural approach.
 """
@@ -213,8 +213,9 @@ class InventoryService:
         conn = self.db.get_connection()
         try:
             conn.execute('BEGIN IMMEDIATE')
+            lock_clause = ' FOR UPDATE' if self.db.supports_row_locking else ''
             row = conn.execute(
-                'SELECT * FROM products WHERE product_id = ?', (product_id,)
+                f'SELECT * FROM products WHERE product_id = ?{lock_clause}', (product_id,)
             ).fetchone()
             product = Product.from_row(row)
             quantity, errors = validate_stock_movement(product, quantity_str, 'STOCK_IN')
@@ -254,8 +255,9 @@ class InventoryService:
         conn = self.db.get_connection()
         try:
             conn.execute('BEGIN IMMEDIATE')
+            lock_clause = ' FOR UPDATE' if self.db.supports_row_locking else ''
             row = conn.execute(
-                'SELECT * FROM products WHERE product_id = ?', (product_id,)
+                f'SELECT * FROM products WHERE product_id = ?{lock_clause}', (product_id,)
             ).fetchone()
             product = Product.from_row(row)
             quantity, errors = validate_stock_movement(product, quantity_str, 'STOCK_OUT')
@@ -396,6 +398,71 @@ class InventoryService:
     # ========================================================================
     # DASHBOARD & REPORTS
     # ========================================================================
+
+    def get_dashboard_data(self):
+        """Return every dashboard panel using a single database connection.
+
+        Keeping the reads together reduces serverless connection churn while
+        retaining the existing public service methods for other pages/tests.
+        """
+        from datetime import timedelta
+        current_day = today()
+        dates = [current_day - timedelta(days=i) for i in range(6, -1, -1)]
+        date_strings = [day.strftime('%Y-%m-%d') for day in dates]
+        conn = self.db.get_connection()
+        try:
+            aggregate = conn.execute(
+                '''SELECT COUNT(*) AS total_products,
+                          COALESCE(SUM(quantity), 0) AS total_stock,
+                          COALESCE(SUM(price * quantity), 0) AS total_value,
+                          COALESCE(SUM(CASE WHEN quantity > 0 AND quantity <= reorder_level THEN 1 ELSE 0 END), 0) AS low_stock_count,
+                          COALESCE(SUM(CASE WHEN quantity > reorder_level THEN 1 ELSE 0 END), 0) AS healthy_count,
+                          COALESCE(SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END), 0) AS out_of_stock_count
+                   FROM products WHERE is_active = 1'''
+            ).fetchone()
+            total_active = aggregate['total_products']
+            health_percent = int(round((aggregate['healthy_count'] / total_active) * 100)) if total_active else None
+            alert_rows = conn.execute(
+                '''SELECT * FROM products WHERE is_active = 1
+                   AND quantity <= reorder_level
+                   ORDER BY CASE WHEN quantity = 0 THEN 0 ELSE 1 END, quantity ASC, name ASC'''
+            ).fetchall()
+            recent_rows = conn.execute(
+                '''SELECT t.*, p.name, p.sku FROM stock_transactions t
+                   JOIN products p ON t.product_id = p.product_id
+                   ORDER BY datetime(replace(t.created_at, 'T', ' ')) DESC,
+                            t.transaction_id DESC LIMIT ?''', (6,)
+            ).fetchall()
+            movement_rows = conn.execute(
+                '''SELECT substr(created_at, 1, 10) AS txn_date, transaction_type,
+                          SUM(quantity) AS total_qty FROM stock_transactions
+                   WHERE replace(substr(created_at, 1, 10), 'T', ' ') >= ?
+                     AND replace(substr(created_at, 1, 10), 'T', ' ') <= ?
+                     AND transaction_type IN ('STOCK_IN', 'STOCK_OUT')
+                   GROUP BY substr(created_at, 1, 10), transaction_type''',
+                (date_strings[0], date_strings[-1]),
+            ).fetchall()
+        finally:
+            conn.close()
+
+        movement_totals = {(row['txn_date'], row['transaction_type']): row['total_qty'] for row in movement_rows}
+        movement_stats = [{
+            'date': day.strftime('%Y-%m-%d'), 'label': day.strftime('%d %b'),
+            'stock_in': movement_totals.get((day.strftime('%Y-%m-%d'), 'STOCK_IN'), 0),
+            'stock_out': movement_totals.get((day.strftime('%Y-%m-%d'), 'STOCK_OUT'), 0),
+        } for day in dates]
+        stats = {key: aggregate[key] for key in ('total_products', 'total_stock', 'low_stock_count', 'total_value')}
+        health_stats = {
+            'total_active': total_active, 'healthy_count': aggregate['healthy_count'],
+            'low_stock_count': aggregate['low_stock_count'], 'out_of_stock_count': aggregate['out_of_stock_count'],
+            'health_percent': health_percent, 'health_label': f'{health_percent}%' if health_percent is not None else 'N/A',
+            'attention_count': aggregate['low_stock_count'] + aggregate['out_of_stock_count'],
+        }
+        return {
+            'stats': stats, 'low_stock_products': [Product.from_row(row) for row in alert_rows],
+            'recent_transactions': [StockTransaction.from_row(row) for row in recent_rows],
+            'health_stats': health_stats, 'movement_stats': movement_stats,
+        }
 
     def get_dashboard_stats(self):
         """
