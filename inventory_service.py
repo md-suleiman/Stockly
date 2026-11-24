@@ -445,12 +445,38 @@ class InventoryService:
         finally:
             conn.close()
 
-        movement_totals = {(row['txn_date'], row['transaction_type']): row['total_qty'] for row in movement_rows}
-        movement_stats = [{
-            'date': day.strftime('%Y-%m-%d'), 'label': day.strftime('%d %b'),
-            'stock_in': movement_totals.get((day.strftime('%Y-%m-%d'), 'STOCK_IN'), 0),
-            'stock_out': movement_totals.get((day.strftime('%Y-%m-%d'), 'STOCK_OUT'), 0),
-        } for day in dates]
+        movement_totals = {
+            (row['txn_date'], row['transaction_type']): row['total_qty']
+            for row in movement_rows
+        }
+        movement_days = []
+        for day in dates:
+            date_string = day.strftime('%Y-%m-%d')
+            movement_days.append({
+                'date': date_string,
+                'label': day.strftime('%d %b'),
+                'day_name': day.strftime('%a'),
+                'stock_in': int(movement_totals.get((date_string, 'STOCK_IN'), 0) or 0),
+                'stock_out': int(movement_totals.get((date_string, 'STOCK_OUT'), 0) or 0),
+            })
+        max_movement = max(
+            (max(day['stock_in'], day['stock_out']) for day in movement_days),
+            default=0,
+        )
+        for day in movement_days:
+            day['stock_in_percentage'] = (
+                round(day['stock_in'] / max_movement * 100, 2)
+                if max_movement else 0
+            )
+            day['stock_out_percentage'] = (
+                round(day['stock_out'] / max_movement * 100, 2)
+                if max_movement else 0
+            )
+        movement_stats = {
+            'days': movement_days,
+            'max_movement': max_movement,
+            'has_movement': max_movement > 0,
+        }
         stats = {key: aggregate[key] for key in ('total_products', 'total_stock', 'low_stock_count', 'total_value')}
         health_stats = {
             'total_active': total_active, 'healthy_count': aggregate['healthy_count'],

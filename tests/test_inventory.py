@@ -440,6 +440,35 @@ class TestStocklyService(unittest.TestCase):
         self.assertEqual(movement['max_movement'], 99)
         self.assertEqual(movement['days'][-1]['stock_in_percentage'], 100)
 
+    def test_dashboard_data_includes_populated_movement_chart_contract(self):
+        product_id, _ = self.service.add_product(self._sample_product_data(
+            sku='DASH-MOVEMENT-1', quantity='10'
+        ))
+        self.service.stock_in(product_id, '5', 'Dashboard receipt')
+        self.service.stock_out(product_id, '2', 'Dashboard issue')
+
+        movement = self.service.get_dashboard_data()['movement_stats']
+
+        self.assertTrue(movement['has_movement'])
+        self.assertEqual(movement['max_movement'], 5)
+        self.assertEqual(len(movement['days']), 7)
+        today_data = movement['days'][-1]
+        self.assertEqual(today_data['stock_in'], 5)
+        self.assertEqual(today_data['stock_out'], 2)
+        self.assertEqual(today_data['stock_in_percentage'], 100)
+        self.assertEqual(today_data['stock_out_percentage'], 40)
+
+    def test_dashboard_data_returns_genuinely_empty_movement_chart(self):
+        movement = self.service.get_dashboard_data()['movement_stats']
+
+        self.assertFalse(movement['has_movement'])
+        self.assertEqual(movement['max_movement'], 0)
+        self.assertEqual(len(movement['days']), 7)
+        self.assertTrue(all(day['stock_in'] == 0 for day in movement['days']))
+        self.assertTrue(all(day['stock_out'] == 0 for day in movement['days']))
+        self.assertTrue(all(day['stock_in_percentage'] == 0 for day in movement['days']))
+        self.assertTrue(all(day['stock_out_percentage'] == 0 for day in movement['days']))
+
     # ------------------------------------------------------------------------
     # 21. CSV Export RFC4180 Escaping (handles quotes and commas safely)
     # ------------------------------------------------------------------------
